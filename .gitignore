@@ -178,3 +178,9 @@ dmypy.json
 *.backup
 *~
 
+# Large media files (consider using Git LFS)
+# Uncomment if you want to ignore large video files
+# *.webm
+# *.mp4
+# *.mov
+
