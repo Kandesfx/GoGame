@@ -1,0 +1,450 @@
+import { useState, useEffect } from 'react'
+import { useAuth } from '../contexts/AuthContext'
+import { FaCog, FaSignOutAlt, FaGamepad, FaUser, FaHistory, FaInfoCircle, FaTimes, FaTrophy } from 'react-icons/fa'
+import api from '../services/api'
+import MatchDialog from './MatchDialog'
+
+// Force reload v3
+console.log('🏠 HomePage.jsx loaded - version 3')
+import MatchmakingDialog from './MatchmakingDialog'
+import MatchFoundDialog from './MatchFoundDialog'
+import PvPDialog from './PvPDialog'
+import MatchList from './MatchList'
+import StatisticsPanel from './StatisticsPanel'
+import SettingsDialog from './SettingsDialog'
+import Leaderboard from './Leaderboard'
+import LeaderboardPreview from './LeaderboardPreview'
+import './HomePage.css'
+
+const HomePage = ({ onStartMatch }) => {
+  const { user, logout } = useAuth()
+  const [statistics, setStatistics] = useState(null)
+  const [recentMatches, setRecentMatches] = useState([])
+  const [allMatches, setAllMatches] = useState([])
+  const [showMatchDialog, setShowMatchDialog] = useState(false)
+  const [showMatchmakingDialog, setShowMatchmakingDialog] = useState(false)
+  const [showMatchFoundDialog, setShowMatchFoundDialog] = useState(false)
+  const [foundMatch, setFoundMatch] = useState(null)
+  const [showPvPDialog, setShowPvPDialog] = useState(false)
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [showInfoPanel, setShowInfoPanel] = useState(false)
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [topPlayers, setTopPlayers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [settings, setSettings] = useState(() => {
+    const saved = localStorage.getItem('goGameSettings')
+    return saved ? JSON.parse(saved) : {
+      soundEnabled: true,
+      showCoordinates: true,
+      showLastMove: true,
+      boardTheme: 'classic',
+      animationSpeed: 'normal'
+    }
+  })
+
+  useEffect(() => {
+    let isMounted = true
+    
+    const fetchData = async () => {
+      if (isMounted) {
+        await loadData()
+      }
+    }
+    
+    fetchData()
+    
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  // Close info panel when clicking outside
+  useEffect(() => {
+    if (!showInfoPanel) return
+
+    const handleClickOutside = (event) => {
+      const infoPanel = document.querySelector('.info-panel')
+      const infoButton = document.querySelector('.info-icon-btn')
+      if (infoPanel && infoButton && 
+          !infoPanel.contains(event.target) && 
+          !infoButton.contains(event.target)) {
+        setShowInfoPanel(false)
+      }
+    }
+
+    // Use setTimeout to avoid immediate closure when opening
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('click', handleClickOutside, true)
+    }, 200)
+
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('click', handleClickOutside, true)
+    }
+  }, [showInfoPanel])
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      const [matchesRes, statsRes, leaderboardRes] = await Promise.all([
+        api.get('/matches/history?limit=3'),
+        api.get('/statistics/me'),
+        api.get('/statistics/leaderboard?limit=5')
+      ])
+      setRecentMatches(matchesRes.data || [])
+      setStatistics(statsRes.data)
+      setTopPlayers(leaderboardRes.data || [])
+    } catch (error) {
+      console.error('Failed to load home data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadAllMatches = async () => {
+    try {
+      const response = await api.get('/matches/history')
+      setAllMatches(response.data || [])
+    } catch (error) {
+      console.error('Failed to load all matches:', error)
+      setAllMatches([])
+    }
+  }
+
+  const handleCreateMatch = async (matchType, level, boardSize, playerColor = 'black') => {
+    try {
+      if (matchType === 'matchmaking') {
+        // Open matchmaking dialog
+        setShowMatchDialog(false)
+        setShowMatchmakingDialog(true)
+        return
+      }
+      
+      if (matchType === 'pvp') {
+        // Open PvP dialog
+        setShowMatchDialog(false)
+        setShowPvPDialog(true)
+        return
+      }
+
+      // AI match - gửi player_color để backend biết người chơi muốn cầm quân gì
+      console.log('🎮 HomePage: Creating AI match with player_color:', playerColor)
+      const response = await api.post('/matches/ai', { level, board_size: boardSize, player_color: playerColor })
+      const match = response.data
+      setShowMatchDialog(false)
+      if (onStartMatch) {
+        onStartMatch(match)
+      }
+    } catch (error) {
+      alert('Không thể tạo trận đấu: ' + (error.response?.data?.detail || error.message))
+    }
+  }
+  
+  const handlePvPMatchCreated = (match) => {
+    // Match created, automatically enter the game
+    setShowPvPDialog(false)
+    if (onStartMatch) {
+      onStartMatch(match)
+    }
+  }
+  
+  const handlePvPMatchJoined = (match) => {
+    setShowPvPDialog(false)
+    if (onStartMatch) {
+      onStartMatch(match)
+    }
+  }
+
+  const handleMatchFound = (match) => {
+    console.log('🎮 [HomePage] handleMatchFound called with match:', match)
+    setShowMatchmakingDialog(false)
+    if (match && match.id) {
+      setFoundMatch(match)
+      setShowMatchFoundDialog(true)
+      console.log('✅ [HomePage] MatchFoundDialog should be displayed now')
+    } else {
+      console.error('❌ [HomePage] Invalid match data:', match)
+    }
+  }
+
+  const handleMatchStart = (match) => {
+    console.log('🚀 [HomePage] handleMatchStart called with match:', match)
+    setShowMatchFoundDialog(false)
+    setFoundMatch(null)
+    if (onStartMatch && match && match.id) {
+      console.log('✅ [HomePage] Starting match:', match.id)
+      onStartMatch(match)
+    } else {
+      console.error('❌ [HomePage] Cannot start match - invalid match or onStartMatch:', {
+        match,
+        hasOnStartMatch: !!onStartMatch
+      })
+    }
+  }
+
+  const handleMatchFoundCancel = () => {
+    setShowMatchFoundDialog(false)
+    setFoundMatch(null)
+    // Có thể quay lại matchmaking dialog hoặc home
+  }
+
+  const handleContinueMatch = (match) => {
+    if (onStartMatch) {
+      onStartMatch(match)
+    }
+  }
+
+  const handleSettingsChange = (newSettings) => {
+    setSettings(newSettings)
+    localStorage.setItem('goGameSettings', JSON.stringify(newSettings))
+  }
+
+  const handleLogout = () => {
+    if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
+      logout()
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="home-page loading">
+        <div className="loading-spinner">Đang tải...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="home-page">
+      {/* Top Left - User Info */}
+      <div className="corner-panel top-left">
+        <div className="user-display">
+          <FaUser className="user-icon" />
+          <div className="user-details">
+            <span className="user-label">Người chơi</span>
+            <span className="username">{statistics?.username || user?.username || 'Khách'}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Right - Settings & Logout */}
+      <div className="corner-panel top-right">
+        <button 
+          className="corner-btn"
+          onClick={() => setShowSettingsDialog(true)}
+          title="Cài đặt"
+        >
+          <FaCog />
+        </button>
+        <button 
+          className="corner-btn"
+          onClick={handleLogout}
+          title="Đăng xuất"
+        >
+          <FaSignOutAlt />
+        </button>
+      </div>
+
+      {/* Middle Left - Leaderboard Preview (below user info) */}
+      <div className="corner-panel middle-left">
+        <LeaderboardPreview 
+          topPlayers={topPlayers}
+          onViewAll={() => setShowLeaderboard(true)}
+          loading={loading}
+        />
+      </div>
+
+      {/* Bottom Left - Statistics */}
+      <div className="corner-panel bottom-left">
+        <StatisticsPanel statistics={statistics} compact={true} />
+      </div>
+
+      {/* Bottom Right - Recent Matches */}
+      <div className="corner-panel bottom-right">
+        <div className="compact-section">
+          <div className="compact-header">
+            <FaHistory className="compact-icon" />
+            <span className="compact-title">Gần đây</span>
+            <button 
+              className="view-all-btn"
+              onClick={() => {
+                loadAllMatches()
+                setShowHistoryDialog(true)
+              }}
+              title="Xem tất cả"
+            >
+              Xem tất cả
+            </button>
+          </div>
+          <div className="compact-content">
+            {recentMatches.length > 0 ? (
+              <MatchList 
+                matches={recentMatches.slice(0, 3)}
+                onMatchClick={handleContinueMatch}
+                compact={true}
+              />
+            ) : (
+              <div className="empty-state-small">
+                <p>Chưa có trận đấu</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Info Icon - Bottom Center */}
+      <div className="corner-panel bottom-center">
+        <button 
+          className={`info-icon-btn ${showInfoPanel ? 'active' : ''}`}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('Info button clicked, current state:', showInfoPanel)
+            setShowInfoPanel(prev => {
+              const newState = !prev
+              console.log('Setting showInfoPanel to:', newState)
+              return newState
+            })
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+          }}
+          title="Thông tin về cờ vây"
+          type="button"
+        >
+          <FaInfoCircle className="info-icon" />
+        </button>
+      </div>
+
+      {/* Info Panel - Render outside corner-panel */}
+      {showInfoPanel && (
+        <div 
+          className="info-panel"
+          onClick={(e) => {
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation()
+          }}
+        >
+            <div className="info-panel-header">
+              <h3>Về cờ vây</h3>
+              <button 
+                className="info-close-btn"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setShowInfoPanel(false)
+                }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div className="info-panel-content">
+              <div className="info-item">
+                <h4>🎯 Mục tiêu</h4>
+                <p>Vây bắt lãnh thổ và bắt quân đối phương để giành chiến thắng.</p>
+              </div>
+              <div className="info-item">
+                <h4>⚫⚪ Luật chơi</h4>
+                <p>Đen đi trước. Người chơi lần lượt đặt quân tại các giao điểm.</p>
+              </div>
+              <div className="info-item">
+                <h4>🏆 Tính điểm</h4>
+                <p>Điểm = Lãnh thổ + Quân bắt được. Người có điểm cao nhất thắng!</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {/* Center - Main Action Button */}
+      <div className="center-section">
+        <div className="center-content">
+          <h1 className="main-title">Cờ Vây</h1>
+          <button 
+            className="btn-main-action"
+            onClick={() => setShowMatchDialog(true)}
+          >
+            <FaGamepad className="main-icon" />
+            <span>Bắt đầu chơi</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Dialogs */}
+      {showMatchDialog && (
+        <MatchDialog
+          onClose={() => setShowMatchDialog(false)}
+          onCreateMatch={handleCreateMatch}
+        />
+      )}
+
+      {showMatchmakingDialog && (
+        <MatchmakingDialog
+          onClose={() => setShowMatchmakingDialog(false)}
+          onMatchFound={handleMatchFound}
+        />
+      )}
+
+      {showMatchFoundDialog && foundMatch && (
+        <MatchFoundDialog
+          match={foundMatch}
+          onStart={handleMatchStart}
+          onCancel={handleMatchFoundCancel}
+        />
+      )}
+      
+      {showPvPDialog && (
+        <PvPDialog
+          onClose={() => setShowPvPDialog(false)}
+          onMatchCreated={handlePvPMatchCreated}
+          onMatchJoined={handlePvPMatchJoined}
+        />
+      )}
+
+      {showSettingsDialog && (
+        <SettingsDialog
+          isOpen={showSettingsDialog}
+          onClose={() => setShowSettingsDialog(false)}
+          settings={settings}
+          onSettingsChange={handleSettingsChange}
+        />
+      )}
+
+      {/* History Dialog */}
+      {showHistoryDialog && (
+        <div className="history-dialog-overlay" onClick={() => setShowHistoryDialog(false)}>
+          <div className="history-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="history-dialog-header">
+              <h2>Lịch sử trận đấu</h2>
+              <button 
+                className="history-close-btn"
+                onClick={() => setShowHistoryDialog(false)}
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div className="history-dialog-content">
+              <MatchList 
+                matches={allMatches}
+                onMatchClick={(match) => {
+                  setShowHistoryDialog(false)
+                  handleContinueMatch(match)
+                }}
+                compact={false}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard Dialog */}
+      <Leaderboard 
+        isOpen={showLeaderboard}
+        onClose={() => setShowLeaderboard(false)}
+      />
+    </div>
+  )
+}
+
+export default HomePage

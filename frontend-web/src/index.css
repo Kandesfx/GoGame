@@ -1,0 +1,72 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  /* Color Scheme - Nâu, Cam, Tím */
+  --color-brown: #8B6F47;
+  --color-brown-dark: #6B5438;
+  --color-brown-light: #A6896B;
+  --color-orange: #FF6B35;
+  --color-orange-dark: #E55A2B;
+  --color-orange-light: #FF8C5A;
+  --color-purple: #9B59B6;
+  --color-purple-dark: #7D3C98;
+  --color-purple-light: #BB8FCE;
+  --color-dark: #1A0F1A;
+  --color-darker: #0F0A0F;
+  --color-gray: #2A1F2A;
+  --color-light-gray: #3A2F3A;
+  --color-text: #F5E6D3;
+  --color-text-dim: #D4C4A0;
+  
+  /* Game colors */
+  --primary: var(--color-brown);
+  --secondary: var(--color-orange);
+  --accent: var(--color-purple);
+  --success: #4CAF50;
+  --danger: var(--color-orange);
+  --warning: var(--color-orange-light);
+  --light: var(--color-text);
+  --dark: var(--color-dark);
+  --board-bg: #E8D5B7;
+  --board-line: #8B6F47;
+  --wood-light: #D4C4A0;
+  --wood-medium: #C4B08A;
+  --wood-dark: #8B6F47;
+  --paper: #F5E6D3;
+  --ink: #1A0F1A;
+  
+  /* Force light color scheme để ngăn browser áp dụng dark mode filter */
+  color-scheme: light;
+}
+
+html {
+  /* Force light color scheme để ngăn browser áp dụng dark mode filter */
+  color-scheme: light !important;
+}
+
+body {
+  font-family: 'Be Vietnam Pro', 'Inter', 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--color-darker);
+  color: var(--color-text);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  /* Force light color scheme để ngăn browser áp dụng dark mode filter */
+  color-scheme: light !important;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+

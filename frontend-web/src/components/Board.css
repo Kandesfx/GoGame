@@ -1,0 +1,885 @@
+/* Import Orbitron font for modern theme */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&display=swap');
+/* Import Noto Serif font for natural wood theme */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600&display=swap');
+
+.board-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem; /* Reduced padding to prevent overlap */
+  /* Khôi phục background ban đầu */
+  background: linear-gradient(135deg, #dddcdc 0%, #d3d2d2 100%) !important;
+  border-radius: 12px;
+  width: 100%;
+  min-width: 0; /* Allow shrinking in flex container */
+  flex-shrink: 0; /* Prevent shrinking below content size */
+  position: relative; /* For label positioning */
+  gap: 0.25rem; /* Space between labels and board */
+  /* Isolate board from backdrop-filter effects - create new stacking context */
+  isolation: isolate;
+  z-index: 1;
+  /* Ensure board container is fully opaque */
+  opacity: 1 !important;
+  /* Force GPU acceleration and create separate layer */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* Loại bỏ tất cả filters để đảm bảo không bị ảnh hưởng bởi dark mode */
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  /* Force light color scheme để ngăn browser áp dụng dark mode filter */
+  color-scheme: light !important;
+}
+
+.board-with-labels {
+  display: flex;
+  flex-direction: row;
+  align-items: center; /* Center vertically */
+  justify-content: center;
+  width: 100%;
+  position: relative; /* For label positioning */
+  gap: 0.5rem; /* Space between labels and board to prevent overlap */
+}
+
+/* High specificity rule to ensure board is bright - override dark mode */
+.board-wrapper .board-container .board,
+.board-wrapper .board,
+.center-panel .board-wrapper .board-container .board,
+.center-panel .board-wrapper .board,
+.main-content .center-panel .board-wrapper .board-container .board,
+.main-content .center-panel .board-wrapper .board {
+  display: grid;
+  /* Khôi phục background ban đầu - sáng và rõ ràng, không bị ảnh hưởng bởi dark mode */
+  background: linear-gradient(135deg, #E8D5B7 0%, #D4C4A0 50%, #C4B08A 100%) !important;
+  background-color: #E8D5B7 !important; /* Fallback color */
+  border: 4px solid #8B6F47 !important;
+  border-radius: 6px;
+  /* Padding matches grid lines positioning - MUST be 12px to match Board.jsx calculation */
+  padding: 12px;
+  gap: 0;
+  aspect-ratio: 1;
+  width: 100%;
+  min-width: 300px;
+  max-width: 500px;
+  min-height: 300px;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+  /* Ensure cells are evenly distributed */
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  z-index: 10 !important; /* Tăng z-index để đảm bảo trên cùng */
+  /* Ensure board is fully opaque */
+  opacity: 1 !important;
+  /* Create new stacking context to isolate from backdrop-filter */
+  isolation: isolate !important;
+  /* Force GPU acceleration and create separate layer */
+  transform: translateZ(0) !important;
+  -webkit-transform: translateZ(0) !important;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* Loại bỏ tất cả filters để đảm bảo không bị ảnh hưởng bởi dark mode */
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  /* Force light color scheme để ngăn browser áp dụng dark mode filter */
+  color-scheme: light !important;
+  /* Đảm bảo không có overlay nào che phủ */
+  pointer-events: auto !important;
+}
+
+/* Fallback rule với specificity thấp hơn - override dark mode */
+.board {
+  display: grid;
+  /* Khôi phục background ban đầu - không bị ảnh hưởng bởi dark mode */
+  background: linear-gradient(135deg, #E8D5B7 0%, #D4C4A0 50%, #C4B08A 100%) !important;
+  background-color: #E8D5B7 !important; /* Fallback color */
+  border: 4px solid #8B6F47;
+  border-radius: 6px;
+  /* Padding matches grid lines positioning - MUST be 12px to match Board.jsx calculation */
+  padding: 12px;
+  gap: 0;
+  aspect-ratio: 1;
+  width: 100%;
+  min-width: 300px;
+  max-width: 500px;
+  min-height: 300px;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.1),
+    0 4px 8px rgba(0, 0, 0, 0.15);
+  position: relative;
+  /* Ensure cells are evenly distributed */
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  z-index: 1; /* Board is below labels but above background */
+  /* Ensure board is fully opaque */
+  opacity: 1 !important;
+  /* Create new stacking context to isolate from backdrop-filter */
+  isolation: isolate;
+  /* Force GPU acceleration and create separate layer */
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  /* Loại bỏ tất cả filters để đảm bảo không bị ảnh hưởng bởi dark mode */
+  filter: none !important;
+  -webkit-filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mix-blend-mode: normal !important;
+  /* Force light color scheme để ngăn browser áp dụng dark mode filter */
+  color-scheme: light !important;
+}
+
+/* Grid lines are now drawn using SVG overlay for perfect alignment */
+/* Removed CSS gradient approach - using SVG in Board.jsx instead */
+.grid-lines-overlay {
+  /* SVG overlay is positioned absolutely to match board dimensions */
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Cell represents an intersection point, not a square */
+/* Each cell's center is where stones are placed and grid lines cross */
+.cell {
+  aspect-ratio: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1;
+  overflow: visible;
+  /* No background or border - just an invisible clickable area at intersection */
+  background: transparent;
+  border: none;
+  /* Ensure cell centers align with grid lines */
+  box-sizing: border-box;
+  /* Ensure cells have minimum size to prevent collapse */
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Hover indicator at intersection point (not a square border) */
+/* Removed CSS hover - using React state instead for better control */
+
+.star-point {
+  position: relative;
+}
+
+.star-point::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #5C4033;
+  border-radius: 50%;
+  z-index: 2;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.stone {
+  width: 85%;
+  height: 85%;
+  min-width: 24px;
+  min-height: 24px;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 50%;
+  z-index: 20;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: stonePlace 0.2s ease-out;
+  transition: transform 0.1s ease;
+  pointer-events: none;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  /* Force rendering */
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+.stone:hover {
+  transform: scale(1.05);
+}
+
+@keyframes stonePlace {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.stone-black,
+.stone-b {
+  background: radial-gradient(
+    circle at 35% 35%,
+    #4a4a4a 0%,
+    #2a2a2a 40%,
+    #1a1a1a 70%,
+    #000000 100%
+  );
+  border: 2px solid #0a0a0a;
+  box-shadow: 
+    0 3px 6px rgba(0, 0, 0, 0.4),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.6),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.1);
+}
+
+.stone-black::before,
+.stone-b::before {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  width: 30%;
+  height: 30%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.15) 0%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.stone-white,
+.stone-w {
+  background: radial-gradient(
+    circle at 35% 35%,
+    #ffffff 0%,
+    #f5f5f5 30%,
+    #e8e8e8 60%,
+    #d0d0d0 100%
+  );
+  border: 2px solid #b0b0b0;
+  box-shadow: 
+    0 3px 6px rgba(0, 0, 0, 0.3),
+    inset -2px -2px 4px rgba(0, 0, 0, 0.2),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.8);
+}
+
+.stone-white::before,
+.stone-w::before {
+  content: '';
+  position: absolute;
+  top: 15%;
+  left: 15%;
+  width: 35%;
+  height: 35%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.9) 0%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* Hover indicator at intersection point (circular, not square) */
+.hover-indicator {
+  width: 70%;
+  height: 70%;
+  border-radius: 50%;
+  background: rgba(52, 152, 219, 0.2);
+  border: 3px solid rgba(52, 152, 219, 0.7);
+  z-index: 5;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: hoverPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(52, 152, 219, 0.4);
+  pointer-events: none;
+}
+
+@keyframes hoverPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
+    opacity: 1;
+  }
+}
+
+/* Last move indicator */
+.stone-last-move::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20%;
+  height: 20%;
+  background: #ff4444;
+  border-radius: 50%;
+  z-index: 25 !important;
+  box-shadow: 0 0 4px rgba(255, 68, 68, 0.8);
+  animation: lastMovePulse 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes lastMovePulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.3);
+    opacity: 1;
+  }
+}
+
+/* Coordinate labels */
+.coordinate-labels {
+  display: flex;
+  user-select: none;
+  pointer-events: none;
+}
+
+.column-labels-top,
+.column-labels-bottom {
+  flex-direction: row;
+  padding: 0; /* Remove padding - we'll position labels absolutely */
+  margin-bottom: 0.25rem;
+  display: flex;
+  /* Labels align with grid lines: first label at 0.5*cellSize, last at (boardSize-0.5)*cellSize */
+  position: relative;
+  gap: 0; /* No gap between labels */
+  min-height: 1.5rem; /* Ensure labels have space to render */
+  /* Width will be set inline to match board width */
+}
+
+.column-labels-bottom {
+  margin-top: 0.25rem;
+  margin-bottom: 0;
+}
+
+.column-labels-top .coordinate-label,
+.column-labels-bottom .coordinate-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Labels are positioned absolutely to align with grid intersections */
+  /* Ensure labels are visible */
+  background: transparent; /* No background */
+  border-radius: 0;
+  padding: 0;
+  min-width: 1.5rem;
+  z-index: 10; /* Ensure labels are above board */
+}
+
+.row-labels-left,
+.row-labels-right {
+  flex-direction: column;
+  /* Match board height exactly */
+  height: 100%; /* Match board height */
+  padding: 0; /* Remove padding - we'll position labels absolutely */
+  align-items: center;
+  display: flex;
+  position: relative; /* For absolute positioning of labels */
+  flex: 0 0 auto; /* Don't grow or shrink */
+  min-height: 0; /* Allow shrinking if needed */
+  width: 2rem; /* Fixed width for labels - increased for better visibility and spacing */
+  z-index: 5; /* Ensure labels are above board background */
+  /* Ensure labels are visible */
+  background: transparent; /* Transparent background */
+}
+
+.row-labels-right {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.row-labels-left .coordinate-label,
+.row-labels-right .coordinate-label {
+  /* Position labels absolutely to align with grid lines */
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  transform: translateY(-50%); /* Center vertically on the intersection point */
+  z-index: 10; /* Ensure labels are above board background but below stones */
+  pointer-events: none; /* Don't block clicks */
+  /* Ensure labels are visible */
+  background: transparent; /* No background */
+  border-radius: 0;
+  padding: 0;
+}
+
+.coordinate-label {
+  font-size: 0.9rem; /* Increased for better visibility */
+  font-weight: 700; /* Bolder for better visibility */
+  color: #5C4033;
+  text-align: center;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Ensure labels are always visible */
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* ============================================= */
+/* MODERN THEME - CYBERPUNK NEON STYLE */
+/* ============================================= */
+
+/* Modern theme container - futuristic sci-fi gradient background */
+.board-container-modern {
+  background: linear-gradient(135deg, #07242f 0%, #1a0f22 100%) !important;
+  border-radius: 16px;
+  position: relative;
+  padding: 1.5rem !important;
+  border: 1px solid #00f6ff;
+  box-shadow: 
+    0 0 10px rgba(0, 246, 255, 0.3),
+    0 0 20px rgba(0, 246, 255, 0.15);
+}
+
+/* Subtle outer glow */
+.board-container-modern::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: transparent;
+  border-radius: 18px;
+  z-index: -1;
+  box-shadow: 0 0 15px rgba(0, 246, 255, 0.2);
+}
+
+/* Inner glow effect - subtle */
+.board-container-modern::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 16px;
+  box-shadow: inset 0 0 30px rgba(0, 246, 255, 0.05);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Neon corner brackets */
+.board-container-modern .board-with-labels::before,
+.board-container-modern .board-with-labels::after {
+  content: '';
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  border: 3px solid #00f6ff;
+  z-index: 10;
+  filter: drop-shadow(0 0 6px #00f6ff);
+}
+
+.board-container-modern .board-with-labels::before {
+  top: -8px;
+  left: -8px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.board-container-modern .board-with-labels::after {
+  bottom: -8px;
+  right: -8px;
+  border-left: none;
+  border-top: none;
+}
+
+/* Modern theme board - dark navy gradient with inner glow */
+.board-modern {
+  background: linear-gradient(135deg, #0a1520 0%, #0d1825 50%, #10152a 100%) !important;
+  border: 2px solid rgba(0, 246, 255, 0.5) !important;
+  border-radius: 8px;
+  position: relative;
+  box-shadow: 
+    0 0 20px rgba(0, 246, 255, 0.25),
+    0 0 40px rgba(176, 38, 255, 0.15),
+    inset 0 0 30px rgba(0, 246, 255, 0.08),
+    inset 0 0 60px rgba(176, 38, 255, 0.05) !important;
+}
+
+/* Modern theme cells - transparent to show beige background */
+.cell-modern {
+  background: transparent !important;
+  border: none !important;
+  position: relative;
+}
+
+/* Modern theme star points - cyan reference dots */
+.board-modern .star-point::after {
+  background: #00f6ff !important;
+  box-shadow: 0 0 6px #00f6ff, 0 0 12px rgba(0, 246, 255, 0.6) !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+
+/* Modern theme grid lines - neon cyan to purple gradient glow */
+.board-modern .grid-lines-overlay line {
+  stroke: url(#neonGradient) !important;
+  stroke: #00eaff !important; /* Fallback */
+  stroke-width: 1.6px !important;
+  filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.5)) drop-shadow(0 0 8px rgba(176, 38, 255, 0.3));
+}
+
+/* Alternative: solid neon cyan lines with strong glow */
+.board-modern .grid-lines-overlay {
+  filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.5));
+}
+
+/* Modern theme coordinate labels - neon cyan with glow */
+.board-container-modern .coordinate-label {
+  color: #00eaff !important;
+  font-family: 'Orbitron', 'Rajdhani', 'Share Tech Mono', 'Courier New', monospace;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-shadow: 
+    0 0 8px #00eaff, 
+    0 0 16px rgba(0, 234, 255, 0.6),
+    0 0 24px rgba(0, 234, 255, 0.3);
+  letter-spacing: 2px;
+}
+
+/* Modern theme stones base */
+.stone-modern {
+  width: 80% !important;
+  height: 80% !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Modern black stone - dark core with soft cyan glow */
+.stone-modern.stone-black,
+.stone-modern.stone-b {
+  background: radial-gradient(circle at 40% 40%, #1a1c20 0%, #0d0f12 60%, #080a0d 100%) !important;
+  border: none !important;
+  box-shadow: 
+    0 0 12px rgba(0, 255, 255, 0.4),
+    0 0 24px rgba(0, 255, 255, 0.2),
+    0 4px 8px rgba(0, 0, 0, 0.6) !important;
+}
+
+.stone-modern.stone-black::before,
+.stone-modern.stone-b::before {
+  background: radial-gradient(circle, rgba(0, 255, 255, 0.1) 0%, transparent 70%) !important;
+}
+
+/* Modern white stone - white core with cyan/magenta glow */
+.stone-modern.stone-white,
+.stone-modern.stone-w {
+  background: radial-gradient(circle at 35% 35%, #ffffff 0%, #f8f8f8 40%, #f0f0f0 70%, #e8e8e8 100%) !important;
+  border: none !important;
+  box-shadow: 
+    0 0 15px rgba(255, 255, 255, 0.9),
+    0 0 25px rgba(0, 255, 255, 0.5),
+    0 0 35px rgba(176, 38, 255, 0.3),
+    0 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.stone-modern.stone-white::before,
+.stone-modern.stone-w::before {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, transparent 60%) !important;
+}
+
+/* Modern theme last move indicator */
+.board-modern .stone-last-move::after {
+  background: #ff00ff !important;
+  box-shadow: 0 0 8px #ff00ff, 0 0 16px rgba(255, 0, 255, 0.5) !important;
+}
+
+/* Modern theme hover indicator */
+.board-modern .hover-indicator {
+  background: rgba(0, 246, 255, 0.2) !important;
+  border: 2px solid rgba(0, 246, 255, 0.8) !important;
+  box-shadow: 0 0 15px rgba(0, 246, 255, 0.5) !important;
+}
+
+/* ============================================= */
+/* NATURAL WOOD THEME - INK ON WOOD STYLE */
+/* ============================================= */
+
+/* Natural wood container - 3-layer wooden frame */
+.board-container-natural-wood {
+  /* Outer frame - dark chocolate wood */
+  background: linear-gradient(145deg, #5a3618 0%, #4a2c14 50%, #3d2410 100%) !important;
+  border-radius: 12px;
+  padding: 12px !important;
+  position: relative;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 4px 16px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Middle bevel layer */
+.board-container-natural-wood::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  background: linear-gradient(145deg, #8a5b37 0%, #7a4b27 50%, #6a3b17 100%);
+  border-radius: 8px;
+  box-shadow: 
+    inset 0 2px 4px rgba(255, 255, 255, 0.15),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 0;
+}
+
+/* Inner margin - golden tan wood */
+.board-container-natural-wood::after {
+  content: '';
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  background: linear-gradient(145deg, #d9b07b 0%, #c9a06b 50%, #b9905b 100%);
+  border-radius: 4px;
+  box-shadow: 
+    inset 0 3px 8px rgba(0, 0, 0, 0.15),
+    inset 0 0 20px rgba(74, 44, 20, 0.1);
+  z-index: 0;
+}
+
+/* Board wrapper positioning */
+.board-container-natural-wood .board-with-labels {
+  position: relative;
+  z-index: 1;
+}
+
+/* Natural wood board - paper-like texture on warm tan */
+.board-natural-wood {
+  background: 
+    /* Paper texture - subtle noise effect */
+    repeating-linear-gradient(
+      45deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(107, 74, 47, 0.02) 2px,
+      rgba(107, 74, 47, 0.02) 4px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0px,
+      transparent 3px,
+      rgba(139, 90, 43, 0.015) 3px,
+      rgba(139, 90, 43, 0.015) 6px
+    ),
+    /* Curved corner vignette effect */
+    radial-gradient(
+      ellipse 120% 120% at 0% 0%,
+      transparent 70%,
+      rgba(74, 44, 20, 0.08) 100%
+    ),
+    radial-gradient(
+      ellipse 120% 120% at 100% 0%,
+      transparent 70%,
+      rgba(74, 44, 20, 0.08) 100%
+    ),
+    radial-gradient(
+      ellipse 120% 120% at 0% 100%,
+      transparent 70%,
+      rgba(74, 44, 20, 0.08) 100%
+    ),
+    radial-gradient(
+      ellipse 120% 120% at 100% 100%,
+      transparent 70%,
+      rgba(74, 44, 20, 0.08) 100%
+    ),
+    /* Main warm tan color */
+    linear-gradient(135deg, #dfc08a 0%, #d8b07b 50%, #d0a570 100%) !important;
+  
+  border: none !important;
+  border-radius: 2px;
+  position: relative;
+  
+  /* Soft inward shadows for curved paper effect */
+  box-shadow: 
+    inset 0 0 30px rgba(74, 44, 20, 0.12),
+    inset 0 0 60px rgba(74, 44, 20, 0.06),
+    inset 3px 3px 10px rgba(0, 0, 0, 0.08),
+    inset -3px -3px 10px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Natural wood cells */
+.cell-natural-wood {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Natural wood star points - burned ink look */
+.board-natural-wood .star-point::after {
+  background: radial-gradient(circle, #3a2b1d 0%, #2a1b0d 70%, transparent 100%) !important;
+  width: 7px !important;
+  height: 7px !important;
+  filter: blur(0.3px);
+  box-shadow: none !important;
+}
+
+/* Natural wood coordinate labels */
+.board-container-natural-wood .coordinate-label {
+  color: #4a3020 !important;
+  font-family: 'Noto Serif', Georgia, serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-shadow: 0.5px 0.5px 0 rgba(255, 255, 255, 0.2);
+  opacity: 0.85;
+}
+
+/* ============================================= */
+/* INK SPLASH STONES - Irregular shapes */
+/* ============================================= */
+
+/* Black stone - ink blot irregular shape */
+.stone-natural-wood.stone-black,
+.stone-natural-wood.stone-b {
+  background: radial-gradient(
+    ellipse 55% 50% at 45% 45%,
+    #2a2a2a 0%,
+    #1a1a1a 40%,
+    #0a0a0a 100%
+  ) !important;
+  border: none !important;
+  border-radius: 47% 53% 49% 51% / 52% 48% 52% 48% !important;
+  filter: blur(0.2px);
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.4),
+    -2px 1px 3px rgba(0, 0, 0, 0.2) !important;
+  transform: translate(-50%, -50%) rotate(var(--stone-rotation, 0deg)) scale(var(--stone-scale-x, 1), var(--stone-scale-y, 1)) !important;
+}
+
+/* Black stone - no shine, matte look */
+.stone-natural-wood.stone-black::before,
+.stone-natural-wood.stone-b::before {
+  display: none !important;
+}
+
+/* Ink droplet effect for black stones */
+.stone-natural-wood.stone-black::after,
+.stone-natural-wood.stone-b::after {
+  content: '';
+  position: absolute;
+  width: 15%;
+  height: 12%;
+  background: #0a0a0a;
+  border-radius: 40% 60% 50% 50%;
+  top: 75%;
+  left: 70%;
+  filter: blur(0.5px);
+  opacity: 0.6;
+}
+
+/* White stone - irregular with yellow tint */
+.stone-natural-wood.stone-white,
+.stone-natural-wood.stone-w {
+  background: radial-gradient(
+    ellipse 52% 48% at 42% 40%,
+    #faf8f0 0%,
+    #f5f0e0 30%,
+    #e8e0d0 60%,
+    #d8d0c0 100%
+  ) !important;
+  border: none !important;
+  border-radius: 52% 48% 51% 49% / 48% 52% 49% 51% !important;
+  filter: blur(0.15px);
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    -1px 1px 3px rgba(0, 0, 0, 0.15),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.5) !important;
+  transform: translate(-50%, -50%) rotate(var(--stone-rotation, 0deg)) scale(var(--stone-scale-x, 1), var(--stone-scale-y, 1)) !important;
+}
+
+/* White stone - off-center highlight */
+.stone-natural-wood.stone-white::before,
+.stone-natural-wood.stone-w::before {
+  content: '';
+  position: absolute;
+  top: 18%;
+  left: 22%;
+  width: 28%;
+  height: 22%;
+  background: radial-gradient(
+    ellipse,
+    rgba(255, 255, 255, 0.7) 0%,
+    transparent 70%
+  ) !important;
+  border-radius: 50%;
+  pointer-events: none;
+  transform: rotate(-15deg);
+}
+
+/* White stone - smudge mark */
+.stone-natural-wood.stone-white::after,
+.stone-natural-wood.stone-w::after {
+  content: '';
+  position: absolute;
+  width: 12%;
+  height: 8%;
+  background: rgba(100, 90, 70, 0.15);
+  border-radius: 50%;
+  bottom: 20%;
+  right: 25%;
+  filter: blur(1px);
+}
+
+/* Natural wood last move indicator */
+.board-natural-wood .stone-last-move::after {
+  background: #8b4040 !important;
+  box-shadow: none !important;
+  filter: blur(0.5px);
+  width: 18% !important;
+  height: 18% !important;
+}
+
+/* Natural wood hover indicator */
+.board-natural-wood .hover-indicator {
+  background: rgba(107, 74, 47, 0.12) !important;
+  border: 1.5px solid rgba(107, 74, 47, 0.35) !important;
+  box-shadow: none !important;
+  border-radius: 45% 55% 50% 50% !important;
+}
+

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test LocalStorage</title>
+</head>
+<body>
+    <h1>LocalStorage Test</h1>
+    <button onclick="testSet()">Test Set</button>
+    <button onclick="testGet()">Test Get</button>
+    <button onclick="testClear()">Test Clear</button>
+    <div id="result"></div>
+
+    <script>
+        function testSet() {
+            try {
+                localStorage.setItem('test_key', 'test_value')
+                document.getElementById('result').innerHTML = '✅ Set successful'
+            } catch (e) {
+                document.getElementById('result').innerHTML = '❌ Set failed: ' + e.message
+            }
+        }
+
+        function testGet() {
+            try {
+                const value = localStorage.getItem('test_key')
+                document.getElementById('result').innerHTML = '✅ Get successful: ' + value
+            } catch (e) {
+                document.getElementById('result').innerHTML = '❌ Get failed: ' + e.message
+            }
+        }
+
+        function testClear() {
+            try {
+                localStorage.removeItem('test_key')
+                document.getElementById('result').innerHTML = '✅ Clear successful'
+            } catch (e) {
+                document.getElementById('result').innerHTML = '❌ Clear failed: ' + e.message
+            }
+        }
+
+        // Check on load
+        window.onload = function() {
+            if (typeof(Storage) !== "undefined") {
+                document.getElementById('result').innerHTML = '✅ LocalStorage is supported'
+            } else {
+                document.getElementById('result').innerHTML = '❌ LocalStorage is NOT supported'
+            }
+        }
+    </script>
+</body>
+</html>
+
