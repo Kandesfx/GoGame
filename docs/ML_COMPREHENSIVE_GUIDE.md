@@ -2829,7 +2829,8 @@ python scripts/generate_labels.py --input data/processed/positions_9x9.pt --outp
 - `docs/ML_COMPREHENSIVE_GUIDE.md` - This document
 - `docs/ML_QUICK_START.md` - Quick start guide
 - `docs/ML_TRAINING_ROADMAP.md` - Original roadmap
-- `docs/ML_TRAINING_COLAB_GUIDE.md` - **NEW**: Training trên Colab/Kaggle với dữ liệu chuyên nghiệp
+- `docs/ML_TRAINING_COLAB_GUIDE.md` - Training trên Colab với dữ liệu chuyên nghiệp
+- `docs/ML_TRAINING_KAGGLE_GUIDE.md` - **NEW**: Hướng dẫn training trên Kaggle dễ hiểu với giải thích chi tiết từng bước
 
 **Code**:
 - `src/ml/models/` - Model architecture

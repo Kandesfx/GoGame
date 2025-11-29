@@ -36,9 +36,23 @@ Tài liệu ML được chia thành 4 phần chi tiết + 1 quick start guide:
    - ⏱️ Đọc: 30 phút
   
 
+### Training Guides
+
+5. **[ML_TRAINING_COLAB_GUIDE.md](./ML_TRAINING_COLAB_GUIDE.md)** - TRAINING TRÊN COLAB
+   - Setup Google Colab
+   - Upload data và code
+   - Training pipeline
+   - ⏱️ Đọc: 20 phút
+
+6. **[ML_TRAINING_KAGGLE_GUIDE.md](./ML_TRAINING_KAGGLE_GUIDE.md)** - **NEW**: TRAINING TRÊN KAGGLE
+   - Hướng dẫn từng bước dễ hiểu
+   - Giải thích chi tiết code và tham số
+   - Troubleshooting và best practices
+   - ⏱️ Đọc: 25 phút
+
 ### Quick Reference
 
-5. **[ML_QUICK_START.md](./ML_QUICK_START.md)** - BẮT ĐẦU NHANH
+7. **[ML_QUICK_START.md](./ML_QUICK_START.md)** - BẮT ĐẦU NHANH
    - Setup môi trường
    - Test models
    - Collect data
