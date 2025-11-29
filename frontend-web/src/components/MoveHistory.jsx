@@ -66,9 +66,6 @@ const MoveHistory = ({ moves = [] }) => {
               <span className="move-number">{move.number}</span>
               <span className="move-color">{move.color}</span>
               <span className="move-text">{move.text}</span>
-              {move.captured && move.captured.length > 0 && (
-                <span className="move-captured">+{move.captured.length}</span>
-              )}
             </div>
           ))
         )}

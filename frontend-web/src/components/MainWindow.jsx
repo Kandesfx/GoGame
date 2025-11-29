@@ -8,6 +8,7 @@ import MoveHistory from './MoveHistory'
 import StatisticsPanel from './StatisticsPanel'
 import MatchDialog from './MatchDialog'
 import SettingsDialog from './SettingsDialog'
+import KoDialog from './KoDialog'
 import api from '../services/api'
 import { playStoneSound, resetStoneSoundCounter } from '../utils/sound'
 import './MainWindow.css'
@@ -31,6 +32,7 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     currentPlayer: 'B',
     blackTimeRemaining: null,  // Thời gian còn lại của Black (giây)
     whiteTimeRemaining: null,  // Thời gian còn lại của White (giây)
+    koPosition: null,  // Vị trí KO (nếu có)
   })
   const [isProcessing, setIsProcessing] = useState(false) // Prevent duplicate moves
   const [isDataLoaded, setIsDataLoaded] = useState(false) // Track if data has been loaded
@@ -54,6 +56,9 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const [roomCodeCopied, setRoomCodeCopied] = useState(false)
   const [showPlayerColorModal, setShowPlayerColorModal] = useState(false) // Modal thông báo màu quân cờ
   const [playerColor, setPlayerColor] = useState(null) // 'B' hoặc 'W'
+  const [showKoDialog, setShowKoDialog] = useState(false) // Dialog thông báo tình trạng cướp cờ KO
+  const [koPosition, setKoPosition] = useState(null) // Vị trí KO hiện tại
+  const [previousKoPosition, setPreviousKoPosition] = useState(null) // Vị trí KO trước đó để detect thay đổi
 
   // Debug: Log dialog state changes
   useEffect(() => {
@@ -274,6 +279,23 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     }
   }, [currentMatch, gameOver, boardState.currentPlayer, boardState.blackTimeRemaining, boardState.whiteTimeRemaining])
 
+  // Hiển thị dialog khi có tình trạng cướp cờ KO
+  useEffect(() => {
+    const currentKoPosition = boardState.koPosition
+    
+    // Nếu có ko_position mới (khác với previous) và không phải null → hiển thị dialog
+    if (currentKoPosition && 
+        JSON.stringify(currentKoPosition) !== JSON.stringify(previousKoPosition)) {
+      console.log('🔔 KO position detected:', currentKoPosition)
+      setKoPosition(currentKoPosition)
+      setShowKoDialog(true)
+      setPreviousKoPosition(currentKoPosition)
+    } else if (!currentKoPosition && previousKoPosition) {
+      // Nếu ko_position bị clear (từ có về không có) → reset previous
+      setPreviousKoPosition(null)
+    }
+  }, [boardState.koPosition, previousKoPosition])
+
   // Helper function để format thời gian (MM:SS)
   const formatTime = (seconds) => {
     if (seconds === null || seconds === undefined) return '--:--'
@@ -446,6 +468,12 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             }
           }
           
+          // Lấy ko_position từ state
+          let koPositionValue = null
+          if (state.ko_position && Array.isArray(state.ko_position) && state.ko_position.length === 2) {
+            koPositionValue = state.ko_position
+          }
+          
           return {
             ...prev,
             stones, // Dùng stones từ backend (đã được sửa màu nếu là AI match)
@@ -456,6 +484,7 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             currentPlayer: correctCurrentPlayer,
             blackTimeRemaining: state.black_time_remaining_seconds !== undefined ? state.black_time_remaining_seconds : prev.blackTimeRemaining,
             whiteTimeRemaining: state.white_time_remaining_seconds !== undefined ? state.white_time_remaining_seconds : prev.whiteTimeRemaining,
+            koPosition: koPositionValue,
           }
         })
         
@@ -514,7 +543,8 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             boardSize: response.data.board_size, // Use board_size from match
             prisonersBlack: 0,
             prisonersWhite: 0,
-            currentPlayer: 'B'
+            currentPlayer: 'B',
+            koPosition: null
           }))
         } else {
           // Fallback: keep current boardSize
@@ -524,7 +554,8 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             lastMove: null,
             prisonersBlack: 0,
             prisonersWhite: 0,
-            currentPlayer: 'B'
+            currentPlayer: 'B',
+            koPosition: null
           }))
         }
       }
@@ -1017,7 +1048,15 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       } else if (error.code === 'ECONNABORTED') {
         alert('Move timeout: AI is taking too long. Please wait or try again.')
       } else {
-        alert('Failed to submit move: ' + (error.response?.data?.detail || error.message))
+        const errorMessage = error.response?.data?.detail || error.message || ''
+        // Kiểm tra nếu lỗi liên quan đến KO rule
+        if (errorMessage.includes('Ko rule') || errorMessage.includes('ko rule') || errorMessage.includes('KO')) {
+          // Hiển thị dialog thay vì alert
+          setKoPosition(boardState.koPosition || [x, y])
+          setShowKoDialog(true)
+        } else {
+          alert('Failed to submit move: ' + errorMessage)
+        }
       }
     } finally {
       setIsProcessing(false)
@@ -1337,7 +1376,7 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const formatGameResult = (result) => {
     if (!result) return 'Game ended'
     
-    // Format: "B+X", "W+X", "DRAW", "B+R", "W+R"
+    // Format: "B+X", "W+X", "B+X(total)", "W+X(total)", "DRAW", "B+R", "W+R"
     if (result === 'DRAW') {
       return 'Kết quả: Hòa (Draw)'
     }
@@ -1348,9 +1387,18 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     }
     
     if (result.includes('+')) {
-      const [winner, score] = result.split('+')
+      const [winner, rest] = result.split('+')
       const winnerName = winner === 'B' ? 'Đen (Black)' : 'Trắng (White)'
-      return `Kết quả: ${winnerName} thắng với ${score} điểm`
+      
+      // Kiểm tra format mới: "B+30.5(62)" hoặc format cũ: "B+30.5"
+      const match = rest.match(/^([\d.]+)(?:\(([\d.]+)\))?$/)
+      if (match) {
+        const totalScore = match[2] || match[1] // Nếu có total score trong ngoặc, dùng nó; nếu không, dùng difference (backward compatible)
+        return `Kết quả: ${winnerName} thắng với ${totalScore} điểm`
+      }
+      
+      // Fallback cho format cũ
+      return `Kết quả: ${winnerName} thắng với ${rest} điểm`
     }
     
     return `Kết quả: ${result}`
@@ -1540,20 +1588,20 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       <div className="main-content">
         {/* Left sidebar - Game Info and Controls */}
         <div className="left-sidebar">
-          {/* Prisoners display */}
-          <div className="prisoners-display">
-            <div className="prisoner-info prisoner-black">
+          {/* Player info and game status */}
+          <div className="players-display">
+            <div className="player-info player-black">
               {/* Hiển thị "Đen" và tên người chơi/AI bên cạnh */}
-              <div className="prisoner-label">
-                <span className="prisoner-color-name">Đen</span>
+              <div className="player-label">
+                <span className="player-color-name">Đen</span>
                 {currentMatch?.ai_level ? (
                   // AI match: hiển thị Bạn hoặc AI dựa trên playerColor
-                  <span className="prisoner-player-name">
+                  <span className="player-player-name">
                     {playerColor === 'B' ? ' - Bạn' : ' - AI'}
                   </span>
                 ) : (
                   // PvP match
-                  <span className="prisoner-player-name">
+                  <span className="player-player-name">
                     {playerColor === 'B' 
                       ? ' - Bạn' 
                       : currentMatch?.black_player_username 
@@ -1562,8 +1610,6 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
                   </span>
                 )}
               </div>
-              {/* QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black */}
-              <div className="prisoner-count">{boardState.prisonersWhite}</div>
               {/* Hiển thị thời gian còn lại cho PvP matches */}
               {!currentMatch?.ai_level && boardState.blackTimeRemaining !== null && (
                 <div className={`time-display ${boardState.currentPlayer === 'B' ? 'time-active' : ''} ${boardState.blackTimeRemaining <= 30 ? 'time-warning' : ''}`}>
@@ -1590,18 +1636,18 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
                 </div>
               )}
             </div>
-            <div className="prisoner-info prisoner-white">
+            <div className="player-info player-white">
               {/* Hiển thị "Trắng" và tên người chơi/AI bên cạnh */}
-              <div className="prisoner-label">
-                <span className="prisoner-color-name">Trắng</span>
+              <div className="player-label">
+                <span className="player-color-name">Trắng</span>
                 {currentMatch?.ai_level ? (
                   // AI match: hiển thị Bạn hoặc AI dựa trên playerColor
-                  <span className="prisoner-player-name">
+                  <span className="player-player-name">
                     {playerColor === 'W' ? ' - Bạn' : ' - AI'}
                   </span>
                 ) : (
                   // PvP match
-                  <span className="prisoner-player-name">
+                  <span className="player-player-name">
                     {playerColor === 'W' 
                       ? ' - Bạn' 
                       : currentMatch?.white_player_username 
@@ -1610,8 +1656,6 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
                   </span>
                 )}
               </div>
-              {/* QUAN TRỌNG: prisoners_black = số quân Black bị bắt = điểm của White */}
-              <div className="prisoner-count">{boardState.prisonersBlack}</div>
               {/* Hiển thị thời gian còn lại cho PvP matches */}
               {!currentMatch?.ai_level && boardState.whiteTimeRemaining !== null && (
                 <div className={`time-display ${boardState.currentPlayer === 'W' ? 'time-active' : ''} ${boardState.whiteTimeRemaining <= 30 ? 'time-warning' : ''}`}>
@@ -1740,6 +1784,14 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             setSettings(newSettings)
             localStorage.setItem('goGameSettings', JSON.stringify(newSettings))
           }}
+        />
+      )}
+
+      {showKoDialog && (
+        <KoDialog
+          isOpen={showKoDialog}
+          onClose={() => setShowKoDialog(false)}
+          koPosition={koPosition}
         />
       )}
 

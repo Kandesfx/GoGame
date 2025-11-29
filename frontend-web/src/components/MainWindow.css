@@ -231,8 +231,8 @@
   -webkit-backdrop-filter: none !important;
 }
 
-/* Prisoners display */
-.prisoners-display {
+/* Players display */
+.players-display {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -253,7 +253,7 @@
   flex-shrink: 0;
 }
 
-.prisoners-display::before {
+.players-display::before {
   content: '';
   position: absolute;
   top: 0;
@@ -263,7 +263,7 @@
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
 }
 
-.prisoner-info {
+.player-info {
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -276,12 +276,12 @@
   transition: all 0.2s ease;
 }
 
-.prisoner-info:hover {
+.player-info:hover {
   background: rgba(42, 31, 42, 0.9);
   border-color: rgba(139, 111, 71, 0.5);
 }
 
-.prisoner-label {
+.player-label {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-text);
@@ -293,13 +293,13 @@
   flex-wrap: wrap;
 }
 
-.prisoner-color-name {
+.player-color-name {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
 }
 
-.prisoner-player-name {
+.player-player-name {
   font-weight: 600;
   font-size: 0.8rem;
   text-transform: none;
@@ -308,11 +308,11 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
-.prisoner-black .prisoner-label {
+.player-black .player-label {
   color: var(--color-text);
 }
 
-.prisoner-white .prisoner-label {
+.player-white .player-label {
   color: var(--color-text);
 }
 
@@ -356,14 +356,6 @@
   }
 }
 
-.prisoner-count {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-orange);
-  min-width: 2.5rem;
-  text-align: right;
-  text-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
-}
 
 /* Room Code Display in Game */
 .room-code-display-in-game {

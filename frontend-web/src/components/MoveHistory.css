@@ -135,16 +135,6 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
-.move-captured {
-  font-size: 0.75rem;
-  color: var(--color-orange);
-  font-weight: 700;
-  background: rgba(255, 140, 90, 0.4);
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 140, 90, 0.5);
-  text-shadow: 0 0 4px rgba(255, 140, 90, 0.6);
-}
 
 .move-history-empty {
   text-align: center;

@@ -740,23 +740,13 @@ class MatchService:
                 raise ValueError(f"Invalid move: ({move.x}, {move.y}) - position already occupied")
             
             # Validate Ko rule TRƯỚC KHI tính capture
-            # QUAN TRỌNG: Ko rule chỉ áp dụng nếu:
-            # 1. Có ko_position từ move trước
-            # 2. Nước đi hiện tại đặt tại vị trí ko_position
-            # 3. VÀ nước đi hiện tại sẽ capture đúng 1 quân (cần tính trước để kiểm tra)
-            # Tuy nhiên, để đơn giản, ta chỉ kiểm tra xem có đặt tại ko_position không
-            # Nếu có, thì cần kiểm tra xem có capture được quân không (nếu không capture thì vi phạm KO)
+            # QUAN TRỌNG: Luật KO (cấm cướp cờ):
+            # - Nếu bạn vừa ăn 1 quân ở một điểm nào đó, đối thủ không được phép ngay lập tức 
+            #   ăn lại đúng quân vừa bắt của bạn tại đúng vị trí đó trong nước tiếp theo.
+            # - Họ phải đánh ở chỗ khác trước 1 nước, sau đó mới được quay lại ăn.
+            # - KO rule áp dụng BẤT KỂ có capture hay không - không được đặt tại ko_position
             if ko_position and (move.x, move.y) == ko_position:
-                # Đặt tại ko_position - cần kiểm tra xem có capture được quân không
-                # Tính captured stones tạm thời để kiểm tra
-                temp_captured = self._calculate_capture_fallback(
-                    board_position_before, move.x, move.y, move.color, match.board_size
-                )
-                # Nếu không capture được quân nào → vi phạm KO
-                if len(temp_captured) == 0:
-                    raise ValueError(f"Invalid move: ({move.x}, {move.y}) - violates Ko rule (no capture)")
-                # Nếu capture được quân → hợp lệ (có thể bỏ qua KO rule nếu capture)
-                # Trong cờ vây, nếu capture được quân thì có thể đặt tại ko_position
+                raise ValueError(f"Invalid move: ({move.x}, {move.y}) - violates Ko rule (cannot immediately recapture at ko position)")
             
             # Tính captured stones trong fallback mode
             captured_stones = self._calculate_capture_fallback(
@@ -933,24 +923,13 @@ class MatchService:
                             game_over_after_ai = True
                             if not match.finished_at:
                                 match.finished_at = datetime.now(timezone.utc)
-                                # Tính điểm đơn giản (fallback mode - chỉ dùng prisoners)
-                                # Lưu ý: prisoners_black = quân trắng bị bắt bởi Black (điểm của Black)
-                                #        prisoners_white = quân đen bị bắt bởi White (điểm của White)
-                                prisoners_black_updated = updated_game_doc.get("prisoners_black", 0) if updated_game_doc else prisoners_black
-                                prisoners_white_updated = updated_game_doc.get("prisoners_white", 0) if updated_game_doc else prisoners_white
-                                
-                                # So sánh điểm (chỉ dùng prisoners, không có territory và komi)
-                                # Đây là cách tính đơn giản, không chính xác 100% nhưng đủ cho fallback mode
-                                # QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black
-                                # prisoners_black = số quân Black bị bắt = điểm của White
-                                black_score = prisoners_white_updated  # Black điểm = quân White bị bắt
-                                white_score = prisoners_black_updated  # White điểm = quân Black bị bắt
-                                
-                                if black_score > white_score:
-                                    match.result = f"B+{black_score - white_score}"
-                                elif white_score > black_score:
-                                    match.result = f"W+{white_score - black_score}"
+                                # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+                                board_position = updated_game_doc.get("board_position") if updated_game_doc else game_doc.get("board_position", {})
+                                if board_position:
+                                    match.result = self._calculate_game_result_fallback(board_position, match)
                                 else:
+                                    # Không có board_position → không thể tính điểm chính xác
+                                    logger.warning(f"Cannot calculate score without board_position for match {match.id}")
                                     match.result = "DRAW"
                                 self.db.commit()
             
@@ -1180,18 +1159,8 @@ class MatchService:
                         is_game_over = True
                         if not match.finished_at:
                             match.finished_at = datetime.now(timezone.utc)
-                            prisoners_black = board.get_prisoners(go.Color.Black)
-                            prisoners_white = board.get_prisoners(go.Color.White)
-                            # QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black
-                            # prisoners_black = số quân Black bị bắt = điểm của White
-                            black_score = prisoners_white  # Black điểm = quân White bị bắt
-                            white_score = prisoners_black  # White điểm = quân Black bị bắt
-                            if black_score > white_score:
-                                match.result = f"B+{black_score - white_score}"
-                            elif white_score > black_score:
-                                match.result = f"W+{white_score - black_score}"
-                            else:
-                                match.result = "DRAW"
+                            # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+                            match.result = self._calculate_game_result(board, match)
                             self.db.commit()
                     else:
                         # AI đã pass, báo cho frontend
@@ -1607,6 +1576,259 @@ class MatchService:
             "prisoners_white": prisoners_white,
         }
 
+    def _calculate_territory_flood_fill(self, board: "go.Board", board_size: int) -> Tuple[int, int]:
+        """Tính lãnh thổ bằng flood-fill: tìm các vùng trống được bao quanh hoàn toàn bởi một màu.
+        
+        Args:
+            board: Board object từ gogame_py
+            board_size: Kích thước bàn cờ
+            
+        Returns:
+            Tuple (territory_black, territory_white)
+        """
+        territory_black = 0
+        territory_white = 0
+        visited = set()
+        
+        def flood_fill_territory(start_x: int, start_y: int) -> Tuple[set, Optional[str]]:
+            """Flood-fill từ một ô trống để tìm vùng territory.
+            
+            Returns:
+                Tuple (set of coordinates, owner) - owner là "B", "W", hoặc None nếu tranh chấp
+            """
+            if (start_x, start_y) in visited:
+                return set(), None
+            
+            region = set()
+            stack = [(start_x, start_y)]
+            
+            # Flood-fill để tìm tất cả các ô trống liên thông
+            while stack:
+                x, y = stack.pop()
+                
+                if (x, y) in visited:
+                    continue
+                
+                # Kiểm tra ô có trống không
+                if board.at(x, y) != go.Stone.Empty:
+                    continue
+                
+                visited.add((x, y))
+                region.add((x, y))
+                
+                # Thêm các ô trống kề bên vào stack
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    
+                    if (0 <= nx < board_size and 0 <= ny < board_size):
+                        neighbor_stone = board.at(nx, ny)
+                        if neighbor_stone == go.Stone.Empty and (nx, ny) not in visited:
+                            stack.append((nx, ny))
+            
+            # Sau khi flood-fill xong, kiểm tra toàn bộ biên của vùng
+            # Theo luật Trung Quốc: Territory = các giao điểm trống được bao quanh hoàn toàn bởi quân của một màu
+            # Lưu ý: Chỉ kiểm tra neighbors trong bàn cờ, không loại trừ vùng chạm biên nếu tất cả neighbors đều là một màu
+            has_black_neighbor = False
+            has_white_neighbor = False
+            has_internal_neighbors = False  # Có neighbors trong bàn cờ
+            
+            for x, y in region:
+                # Kiểm tra 4 hướng kề bên của mỗi ô trong vùng
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    
+                    if not (0 <= nx < board_size and 0 <= ny < board_size):
+                        # Ra ngoài bàn cờ -> bỏ qua, không ảnh hưởng đến tính territory
+                        continue
+                    
+                    has_internal_neighbors = True
+                    neighbor_stone = board.at(nx, ny)
+                    
+                    if neighbor_stone == go.Stone.Black:
+                        has_black_neighbor = True
+                    elif neighbor_stone == go.Stone.White:
+                        has_white_neighbor = True
+            
+            # Nếu không có neighbors trong bàn cờ (toàn bộ vùng ở biên và không có quân nào kề) -> không phải territory
+            if not has_internal_neighbors:
+                return region, None
+            
+            # Theo luật Trung Quốc: Nếu chỉ có một màu neighbors (trong bàn cờ) -> là territory của màu đó
+            # Không loại trừ vùng chạm biên nếu tất cả neighbors trong bàn cờ đều là một màu
+            if has_black_neighbor and not has_white_neighbor:
+                return region, "B"
+            elif has_white_neighbor and not has_black_neighbor:
+                return region, "W"
+            else:
+                # Có cả 2 màu hoặc không có màu nào -> không phải territory (vùng tranh chấp)
+                return region, None
+        
+        # Duyệt qua tất cả các ô trống
+        for x in range(board_size):
+            for y in range(board_size):
+                if (x, y) not in visited and board.at(x, y) == go.Stone.Empty:
+                    region, owner = flood_fill_territory(x, y)
+                    if owner == "B":
+                        territory_black += len(region)
+                    elif owner == "W":
+                        territory_white += len(region)
+        
+        return territory_black, territory_white
+
+    def _calculate_territory_flood_fill_fallback(self, board_position: dict, board_size: int) -> Tuple[int, int]:
+        """Tính lãnh thổ bằng flood-fill từ board_position (fallback mode).
+        
+        Args:
+            board_position: Dict với format {"x,y": "B"} hoặc {"x,y": "W"}
+            board_size: Kích thước bàn cờ
+            
+        Returns:
+            Tuple (territory_black, territory_white)
+        """
+        territory_black = 0
+        territory_white = 0
+        visited = set()
+        
+        def is_empty(x: int, y: int) -> bool:
+            """Kiểm tra ô (x, y) có trống không."""
+            key = f"{x},{y}"
+            return board_position.get(key) is None
+        
+        def flood_fill_territory(start_x: int, start_y: int) -> Tuple[set, Optional[str]]:
+            """Flood-fill từ một ô trống để tìm vùng territory."""
+            if (start_x, start_y) in visited:
+                return set(), None
+            
+            region = set()
+            stack = [(start_x, start_y)]
+            
+            # Flood-fill để tìm tất cả các ô trống liên thông
+            while stack:
+                x, y = stack.pop()
+                
+                if (x, y) in visited:
+                    continue
+                
+                # Kiểm tra ô có trống không
+                if not is_empty(x, y):
+                    continue
+                
+                visited.add((x, y))
+                region.add((x, y))
+                
+                # Thêm các ô trống kề bên vào stack
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    
+                    if (0 <= nx < board_size and 0 <= ny < board_size):
+                        neighbor_key = f"{nx},{ny}"
+                        neighbor_color = board_position.get(neighbor_key)
+                        if neighbor_color is None and (nx, ny) not in visited:
+                            stack.append((nx, ny))
+            
+            # Sau khi flood-fill xong, kiểm tra toàn bộ biên của vùng
+            # Theo luật Trung Quốc: Territory = các giao điểm trống được bao quanh hoàn toàn bởi quân của một màu
+            # Lưu ý: Chỉ kiểm tra neighbors trong bàn cờ, không loại trừ vùng chạm biên nếu tất cả neighbors đều là một màu
+            has_black_neighbor = False
+            has_white_neighbor = False
+            has_internal_neighbors = False  # Có neighbors trong bàn cờ
+            
+            for x, y in region:
+                # Kiểm tra 4 hướng kề bên của mỗi ô trong vùng
+                for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nx, ny = x + dx, y + dy
+                    
+                    if not (0 <= nx < board_size and 0 <= ny < board_size):
+                        # Ra ngoài bàn cờ -> bỏ qua, không ảnh hưởng đến tính territory
+                        continue
+                    
+                    has_internal_neighbors = True
+                    neighbor_key = f"{nx},{ny}"
+                    neighbor_color = board_position.get(neighbor_key)
+                    
+                    if neighbor_color == "B":
+                        has_black_neighbor = True
+                    elif neighbor_color == "W":
+                        has_white_neighbor = True
+            
+            # Nếu không có neighbors trong bàn cờ (toàn bộ vùng ở biên và không có quân nào kề) -> không phải territory
+            if not has_internal_neighbors:
+                return region, None
+            
+            # Theo luật Trung Quốc: Nếu chỉ có một màu neighbors (trong bàn cờ) -> là territory của màu đó
+            # Không loại trừ vùng chạm biên nếu tất cả neighbors trong bàn cờ đều là một màu
+            if has_black_neighbor and not has_white_neighbor:
+                return region, "B"
+            elif has_white_neighbor and not has_black_neighbor:
+                return region, "W"
+            else:
+                # Có cả 2 màu hoặc không có màu nào -> không phải territory (vùng tranh chấp)
+                return region, None
+        
+        # Duyệt qua tất cả các ô trống
+        for x in range(board_size):
+            for y in range(board_size):
+                if (x, y) not in visited and is_empty(x, y):
+                    region, owner = flood_fill_territory(x, y)
+                    if owner == "B":
+                        territory_black += len(region)
+                    elif owner == "W":
+                        territory_white += len(region)
+        
+        return territory_black, territory_white
+
+    def _calculate_game_result_fallback(self, board_position: dict, match: match_model.Match) -> str:
+        """Tính điểm từ board_position trong fallback mode (không có gogame_py).
+        
+        Args:
+            board_position: Dict với format {"x,y": "B"} hoặc {"x,y": "W"}
+            match: Match object
+            
+        Returns:
+            Result string theo format "B+X" hoặc "W+X" hoặc "DRAW"
+        """
+        # Đếm số quân còn trên bàn
+        stones_black = 0
+        stones_white = 0
+        
+        # Đếm số quân từ board_position
+        for x in range(match.board_size):
+            for y in range(match.board_size):
+                key = f"{x},{y}"
+                stone_color = board_position.get(key)
+                if stone_color == "B":
+                    stones_black += 1
+                elif stone_color == "W":
+                    stones_white += 1
+        
+        # Tính territory bằng flood-fill: tìm các vùng trống được bao quanh hoàn toàn bởi một màu
+        territory_black, territory_white = self._calculate_territory_flood_fill_fallback(board_position, match.board_size)
+        
+        # Komi for white (compensation for going second) - Luật Trung Quốc: 7.5
+        # Lưu ý: Komi chỉ được cộng cho White, không cộng cho Black
+        komi = 7.5
+        
+        # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+        black_score = stones_black + territory_black
+        white_score = stones_white + territory_white + komi
+        
+        # Log để debug
+        logger.info(f"Score calculation (fallback) for match {match.id}:")
+        logger.info(f"  Black: {stones_black} stones + {territory_black} territory = {black_score} points (NO KOMI)")
+        logger.info(f"  White: {stones_white} stones + {territory_white} territory + {komi} komi = {white_score} points")
+        
+        score_diff = black_score - white_score
+        logger.info(f"  Score difference: {score_diff:.1f}")
+        
+        if abs(score_diff) < 0.1:  # Draw (very close scores)
+            return "DRAW"
+        elif score_diff > 0:
+            # Format: "B+{difference}({total_score})" - Black wins by difference, total score is black_score
+            return f"B+{score_diff:.1f}({black_score:.1f})"
+        else:
+            # Format: "W+{difference}({total_score})" - White wins by difference, total score is white_score
+            return f"W+{abs(score_diff):.1f}({white_score:.1f})"
+
     def _calculate_game_result(self, board: "go.Board", match: match_model.Match) -> str:
         """Tính điểm và trả về kết quả game.
         
@@ -1624,57 +1846,48 @@ class MatchService:
             logger.warning("Cannot calculate game result without gogame_py module")
             return "DRAW"
         
-        # Tính điểm từ board state
-        prisoners_black = board.get_prisoners(go.Color.Black)
-        prisoners_white = board.get_prisoners(go.Color.White)
+        # Tính điểm theo luật Trung Quốc: Điểm = Số quân còn trên bàn + Lãnh thổ + Komi
         
-        # Tính territory (empty intersections surrounded by one color)
-        territory_black = 0
-        territory_white = 0
+        # Đếm số quân còn trên bàn
+        stones_black = 0
+        stones_white = 0
         
-        # Simple territory calculation: count empty intersections adjacent to stones
+        # Đếm số quân từ board
         for x in range(match.board_size):
             for y in range(match.board_size):
                 stone = board.at(x, y)
-                if stone == go.Stone.Empty:
-                    # Check neighbors to determine territory
-                    has_black_neighbor = False
-                    has_white_neighbor = False
-                    
-                    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        nx, ny = x + dx, y + dy
-                        if 0 <= nx < match.board_size and 0 <= ny < match.board_size:
-                            neighbor = board.at(nx, ny)
-                            if neighbor == go.Stone.Black:
-                                has_black_neighbor = True
-                            elif neighbor == go.Stone.White:
-                                has_white_neighbor = True
-                    
-                    # Count as territory if only one color nearby
-                    if has_black_neighbor and not has_white_neighbor:
-                        territory_black += 1
-                    elif has_white_neighbor and not has_black_neighbor:
-                        territory_white += 1
+                if stone == go.Stone.Black:
+                    stones_black += 1
+                elif stone == go.Stone.White:
+                    stones_white += 1
         
-        # Komi for white (compensation for going second)
-        # Standard komi: 6.5 for 9x9, 7.5 for 13x13, 7.5 for 19x19
-        # Komi: 9x9 = 6.5, 13x13 = 7.5, 19x19 = 7.5
-        komi = 6.5 if match.board_size == 9 else 7.5
+        # Tính territory bằng flood-fill: tìm các vùng trống được bao quanh hoàn toàn bởi một màu
+        territory_black, territory_white = self._calculate_territory_flood_fill(board, match.board_size)
         
-        # Final score: territory + prisoners
-        # QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black
-        # prisoners_black = số quân Black bị bắt = điểm của White
-        black_score = territory_black + prisoners_white  # Black điểm = territory + quân White bị bắt
-        white_score = territory_white + prisoners_black + komi  # White điểm = territory + quân Black bị bắt + komi
+        # Komi for white (compensation for going second) - Luật Trung Quốc: 7.5
+        komi = 7.5
+        
+        # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+        # Lưu ý: Komi chỉ được cộng cho White, không cộng cho Black
+        black_score = stones_black + territory_black
+        white_score = stones_white + territory_white + komi
+        
+        # Log để debug
+        logger.info(f"Score calculation for match {match.id}:")
+        logger.info(f"  Black: {stones_black} stones + {territory_black} territory = {black_score} points (NO KOMI)")
+        logger.info(f"  White: {stones_white} stones + {territory_white} territory + {komi} komi = {white_score} points")
         
         score_diff = black_score - white_score
+        logger.info(f"  Score difference: {score_diff:.1f}")
         
         if abs(score_diff) < 0.1:  # Draw (very close scores)
             return "DRAW"
         elif score_diff > 0:
-            return f"B+{score_diff:.1f}"
+            # Format: "B+{difference}({total_score})" - Black wins by difference, total score is black_score
+            return f"B+{score_diff:.1f}({black_score:.1f})"
         else:
-            return f"W+{abs(score_diff):.1f}"
+            # Format: "W+{difference}({total_score})" - White wins by difference, total score is white_score
+            return f"W+{abs(score_diff):.1f}({white_score:.1f})"
 
     def cancel_match(self, match: match_model.Match, user: user_model.User) -> bool:
         """Hủy match khi chưa có người chơi thứ 2.
@@ -1776,18 +1989,13 @@ class MatchService:
             # Update match nếu game over
             if is_game_over and not match.finished_at:
                 match.finished_at = datetime.now(timezone.utc)
-                # Tính điểm đơn giản (fallback mode)
-                prisoners_black = game_doc.get("prisoners_black", 0)
-                prisoners_white = game_doc.get("prisoners_white", 0)
-                # QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black
-                # prisoners_black = số quân Black bị bắt = điểm của White
-                black_score = prisoners_white  # Black điểm = quân White bị bắt
-                white_score = prisoners_black  # White điểm = quân Black bị bắt
-                if black_score > white_score:
-                    match.result = f"B+{black_score - white_score}"
-                elif white_score > black_score:
-                    match.result = f"W+{white_score - black_score}"
+                # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+                board_position = game_doc.get("board_position", {})
+                if board_position:
+                    match.result = self._calculate_game_result_fallback(board_position, match)
                 else:
+                    # Không có board_position → không thể tính điểm chính xác
+                    logger.warning(f"Cannot calculate score without board_position for match {match.id}")
                     match.result = "DRAW"
                 self.db.commit()
             
@@ -1837,17 +2045,13 @@ class MatchService:
                                     result["game_over"] = True
                                     if not match.finished_at:
                                         match.finished_at = datetime.now(timezone.utc)
-                                        prisoners_black = updated_game_doc.get("prisoners_black", 0) if updated_game_doc else game_doc.get("prisoners_black", 0)
-                                        prisoners_white = updated_game_doc.get("prisoners_white", 0) if updated_game_doc else game_doc.get("prisoners_white", 0)
-                                        # QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black
-                                        # prisoners_black = số quân Black bị bắt = điểm của White
-                                        black_score = prisoners_white  # Black điểm = quân White bị bắt
-                                        white_score = prisoners_black  # White điểm = quân Black bị bắt
-                                        if black_score > white_score:
-                                            match.result = f"B+{black_score - white_score}"
-                                        elif white_score > black_score:
-                                            match.result = f"W+{white_score - black_score}"
+                                        # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+                                        board_position = updated_game_doc.get("board_position") if updated_game_doc else game_doc.get("board_position", {})
+                                        if board_position:
+                                            match.result = self._calculate_game_result_fallback(board_position, match)
                                         else:
+                                            # Không có board_position → không thể tính điểm chính xác
+                                            logger.warning(f"Cannot calculate score without board_position for match {match.id}")
                                             match.result = "DRAW"
                                         self.db.commit()
                         else:
@@ -1961,18 +2165,8 @@ class MatchService:
                         is_game_over = True
                         if not match.finished_at:
                             match.finished_at = datetime.now(timezone.utc)
-                            prisoners_black = board.get_prisoners(go.Color.Black)
-                            prisoners_white = board.get_prisoners(go.Color.White)
-                            # QUAN TRỌNG: prisoners_white = số quân White bị bắt = điểm của Black
-                            # prisoners_black = số quân Black bị bắt = điểm của White
-                            black_score = prisoners_white  # Black điểm = quân White bị bắt
-                            white_score = prisoners_black  # White điểm = quân Black bị bắt
-                            if black_score > white_score:
-                                match.result = f"B+{black_score - white_score}"
-                            elif white_score > black_score:
-                                match.result = f"W+{white_score - black_score}"
-                            else:
-                                match.result = "DRAW"
+                            # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
+                            match.result = self._calculate_game_result(board, match)
                             self.db.commit()
         
         result = {
