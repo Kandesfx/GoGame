@@ -363,7 +363,7 @@ const GoTutorial = ({ isOpen, onClose }) => {
           { x: 4, y: 0, type: 'triangle' },
           { x: 3, y: 4, type: 'triangle' },
           { x: 7, y: 5, type: 'triangle' },
-          { x: 8, y: 5, type: 'triangle' },
+          { x: 8, y: 5, type: 'triangle' }
 
         ]
       }

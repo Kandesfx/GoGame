@@ -20,7 +20,12 @@ if (token) {
 
 // Request interceptor
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    // Kiểm tra và refresh token proactively trước mỗi request (chỉ cho protected endpoints)
+    if (config.url && !config.url.includes('/auth/')) {
+      await checkAndRefreshToken()
+    }
+    
     const token = localStorage.getItem('access_token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -50,6 +55,79 @@ const processQueue = (error, token = null) => {
     }
   })
   failedQueue = []
+}
+
+// Hàm decode JWT để lấy expiration time
+const decodeJWT = (token) => {
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    return JSON.parse(jsonPayload)
+  } catch (e) {
+    return null
+  }
+}
+
+// Hàm kiểm tra và refresh token proactively
+const checkAndRefreshToken = async () => {
+  const accessToken = localStorage.getItem('access_token')
+  const refreshToken = localStorage.getItem('refresh_token')
+  
+  if (!accessToken || !refreshToken || isRefreshing) {
+    return
+  }
+  
+  try {
+    const decoded = decodeJWT(accessToken)
+    if (!decoded || !decoded.exp) {
+      return
+    }
+    
+    // Kiểm tra nếu token còn ít hơn 30 phút (1800 giây) thì refresh
+    const now = Math.floor(Date.now() / 1000)
+    const timeUntilExpiry = decoded.exp - now
+    
+    // Refresh nếu còn ít hơn 30 phút (hoặc đã hết hạn)
+    if (timeUntilExpiry < 1800) {
+      console.log(`🔄 Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes - refreshing proactively...`)
+      isRefreshing = true
+      
+      try {
+        const refreshResponse = await axios.post(`${API_URL}/auth/refresh`, {
+          refresh_token: refreshToken
+        }, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+        
+        const { access_token, refresh_token: newRefreshToken } = refreshResponse.data
+        
+        localStorage.setItem('access_token', access_token)
+        if (newRefreshToken) {
+          localStorage.setItem('refresh_token', newRefreshToken)
+        }
+        
+        api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
+        window.dispatchEvent(new CustomEvent('tokenRefreshed', { detail: { access_token } }))
+        
+        console.log('✅ Token refreshed proactively')
+      } catch (error) {
+        console.error('❌ Proactive token refresh failed:', error)
+        // Không logout ở đây - để reactive refresh handle
+      } finally {
+        isRefreshing = false
+      }
+    }
+  } catch (e) {
+    // Ignore decode errors
+  }
 }
 
 // Response interceptor for error handling

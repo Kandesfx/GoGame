@@ -42,6 +42,7 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const [gameOverMessage, setGameOverMessage] = useState(null) // Game over message to display
   const [finalElo, setFinalElo] = useState(null) // ELO cuối trận đấu
   const [eloChange, setEloChange] = useState(null) // ELO change từ trận đấu
+  const [gameScoreDetails, setGameScoreDetails] = useState(null) // Chi tiết điểm số: {stonesBlack, stonesWhite, territoryBlack, territoryWhite, komi}
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('goGameSettings')
@@ -332,6 +333,14 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       const resultMsg = formatGameResult(result)
       setGameOverMessage(resultMsg)
       
+      // Tính toán chi tiết điểm số (chỉ khi không phải resign)
+      if (!result.endsWith('+R')) {
+        const scoreDetails = calculateScoreDetails(boardState.stones, boardState.boardSize)
+        setGameScoreDetails(scoreDetails)
+      } else {
+        setGameScoreDetails(null)
+      }
+      
       // Load ELO cuối trận đấu (chỉ cho PvP matches)
       if (!currentMatch?.ai_level) {
         try {
@@ -604,6 +613,7 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       setGameResult(null)
       setShowGameOverModal(false)
       setGameOverMessage(null)
+      setGameScoreDetails(null)
       setIsProcessing(false)
       setMoveHistory([])
       
@@ -773,48 +783,15 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       // Không cần optimistic update nữa vì sẽ dùng board_diff từ response
       // Optimistic update có thể conflict với captured stones
       
-      // Create a custom axios instance with longer timeout for AI moves
-      // Lấy token mới từ localStorage để đảm bảo không bị hết hạn
-      const currentToken = localStorage.getItem('access_token')
-      console.log('🔑 Current token:', currentToken ? `${currentToken.substring(0, 20)}...` : 'MISSING')
-      
-      if (!currentToken) {
-        console.error('❌ No token found - user needs to login')
-        alert('Session expired. Please login again.')
-        if (onLogout) onLogout()
-        setIsProcessing(false)
-        return
-      }
-      
-      const moveApi = axios.create({
-        baseURL: api.defaults.baseURL,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentToken}`
-        },
-        timeout: 60000, // 60 seconds for AI level 3
-      })
-      
-      // Thêm interceptor để xử lý 401
-      moveApi.interceptors.response.use(
-        (response) => response,
-        (error) => {
-          if (error.response?.status === 401) {
-            console.log('🔓 401 Unauthorized in move request - clearing tokens')
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
-            alert('Session expired. Please login again.')
-            if (onLogout) onLogout()
-          }
-          return Promise.reject(error)
-        }
-      )
-      
-      const response = await moveApi.post(`/matches/${currentMatch.id}/move`, {
+      // Dùng api instance chung (có interceptor refresh token)
+      // Set timeout riêng cho request này (AI có thể mất nhiều thời gian)
+      const response = await api.post(`/matches/${currentMatch.id}/move`, {
         x,
         y,
         move_number: moveNumber,
         color,
+      }, {
+        timeout: 60000, // 60 seconds for AI moves
       })
 
       console.log('✅ Move response:', response.data)
@@ -1195,41 +1172,13 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       
       console.log('⏭️ Passing:', { moveNumber, color, currentPlayer: boardState.currentPlayer })
       
-      // Lấy token mới từ localStorage
-      const currentToken = localStorage.getItem('access_token')
-      if (!currentToken) {
-        alert('Session expired. Please login again.')
-        if (onLogout) onLogout()
-        return
-      }
-      
-      const passApi = axios.create({
-        baseURL: api.defaults.baseURL,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentToken}`
-        },
-        timeout: 60000, // 60 seconds for AI response
-      })
-      
-      // Thêm interceptor để xử lý 401
-      passApi.interceptors.response.use(
-        (response) => response,
-        (error) => {
-          if (error.response?.status === 401) {
-            console.log('🔓 401 Unauthorized in pass request - clearing tokens')
-            localStorage.removeItem('access_token')
-            localStorage.removeItem('refresh_token')
-            alert('Session expired. Please login again.')
-            if (onLogout) onLogout()
-          }
-          return Promise.reject(error)
-        }
-      )
-      
-      const passResponse = await passApi.post(`/matches/${currentMatch.id}/pass`, {
+      // Dùng api instance chung (có interceptor refresh token)
+      // Set timeout riêng cho request này (AI có thể mất nhiều thời gian)
+      const passResponse = await api.post(`/matches/${currentMatch.id}/pass`, {
         move_number: moveNumber,
         color,
+      }, {
+        timeout: 60000, // 60 seconds for AI response
       })
       
       // Update move history for pass
@@ -1489,6 +1438,137 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     }
     
     return `Kết quả: ${result}`
+  }
+
+  // Helper function để tính toán chi tiết điểm số
+  const calculateScoreDetails = (stones, boardSize) => {
+    // Đếm số quân trên bàn
+    let stonesBlack = 0
+    let stonesWhite = 0
+    
+    for (const key in stones) {
+      if (stones[key] === 'B') {
+        stonesBlack++
+      } else if (stones[key] === 'W') {
+        stonesWhite++
+      }
+    }
+    
+    // Tính territory bằng flood-fill
+    const calculateTerritory = () => {
+      let territoryBlack = 0
+      let territoryWhite = 0
+      const visited = new Set()
+      
+      const floodFillTerritory = (startX, startY) => {
+        const region = []
+        const frontier = [[startX, startY]]
+        const visitedRegion = new Set()
+        
+        // Bước 1: Flood-fill để thu thập tất cả các ô trống trong vùng
+        while (frontier.length > 0) {
+          const [x, y] = frontier.shift()
+          const key = `${x},${y}`
+          
+          if (visitedRegion.has(key)) continue
+          visitedRegion.add(key)
+          region.push([x, y])
+          
+          // Kiểm tra neighbors
+          const neighbors = [
+            [x + 1, y],
+            [x - 1, y],
+            [x, y + 1],
+            [x, y - 1]
+          ]
+          
+          for (const [nx, ny] of neighbors) {
+            // Nếu ra ngoài bàn cờ, bỏ qua (không ảnh hưởng đến territory)
+            if (nx < 0 || nx >= boardSize || ny < 0 || ny >= boardSize) {
+              continue
+            }
+            
+            const neighborKey = `${nx},${ny}`
+            const neighborStone = stones[neighborKey]
+            
+            // Chỉ tiếp tục flood-fill nếu là ô trống
+            if (!neighborStone && !visitedRegion.has(neighborKey)) {
+              frontier.push([nx, ny])
+            }
+          }
+        }
+        
+        // Bước 2: Kiểm tra tất cả neighbors của toàn bộ vùng để xác định owner
+        let owner = null
+        const neighborColors = new Set()
+        
+        for (const [x, y] of region) {
+          const neighbors = [
+            [x + 1, y],
+            [x - 1, y],
+            [x, y + 1],
+            [x, y - 1]
+          ]
+          
+          for (const [nx, ny] of neighbors) {
+            // Bỏ qua nếu ra ngoài bàn cờ
+            if (nx < 0 || nx >= boardSize || ny < 0 || ny >= boardSize) {
+              continue
+            }
+            
+            const neighborKey = `${nx},${ny}`
+            const neighborStone = stones[neighborKey]
+            
+            if (neighborStone === 'B') {
+              neighborColors.add('B')
+            } else if (neighborStone === 'W') {
+              neighborColors.add('W')
+            }
+          }
+        }
+        
+        // Theo luật Trung Quốc: Territory = vùng trống được bao quanh hoàn toàn bởi một màu
+        if (neighborColors.size === 1) {
+          owner = neighborColors.has('B') ? 'B' : 'W'
+        } else {
+          // Có cả 2 màu hoặc không có màu nào -> không phải territory
+          return { region: null, owner: null }
+        }
+        
+        return { region: region.map(([x, y]) => `${x},${y}`), owner }
+      }
+      
+      // Duyệt tất cả các ô trống
+      for (let x = 0; x < boardSize; x++) {
+        for (let y = 0; y < boardSize; y++) {
+          const key = `${x},${y}`
+          if (stones[key] || visited.has(key)) continue
+          
+          const { region, owner } = floodFillTerritory(x, y)
+          if (region && owner) {
+            region.forEach(k => visited.add(k))
+            if (owner === 'B') {
+              territoryBlack += region.length
+            } else {
+              territoryWhite += region.length
+            }
+          }
+        }
+      }
+      
+      return { territoryBlack, territoryWhite }
+    }
+    
+    const { territoryBlack, territoryWhite } = calculateTerritory()
+    const komi = 7.5 // Komi cho quân trắng
+    
+    return {
+      stonesBlack,
+      stonesWhite,
+      territoryBlack,
+      territoryWhite,
+      komi
+    }
   }
 
   // Helper function để load ELO cuối trận đấu
@@ -1898,6 +1978,59 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             </div>
             <div className="game-over-modal-content">
               <p>{gameOverMessage}</p>
+              
+              {/* Hiển thị chi tiết điểm số */}
+              {gameScoreDetails && gameResult && !gameResult.endsWith('+R') && (
+                <div className="game-over-score-details">
+                  {gameResult.startsWith('W') ? (
+                    // Quân trắng thắng
+                    <div className="score-details-winner">
+                      <div className="score-details-title">🏆 Chi tiết điểm số - Quân Trắng thắng</div>
+                      <div className="score-details-content">
+                        <div className="score-detail-item">
+                          <span className="score-label">Tổng số quân trên bàn cờ:</span>
+                          <span className="score-value">{gameScoreDetails.stonesWhite}</span>
+                        </div>
+                        <div className="score-detail-item">
+                          <span className="score-label">Số lãnh thổ đã chiếm:</span>
+                          <span className="score-value">{gameScoreDetails.territoryWhite}</span>
+                        </div>
+                        <div className="score-detail-item">
+                          <span className="score-label">Điểm cộng Komi:</span>
+                          <span className="score-value komi">+{gameScoreDetails.komi}</span>
+                        </div>
+                        <div className="score-detail-total">
+                          <span className="score-label">Tổng điểm:</span>
+                          <span className="score-value total">
+                            {gameScoreDetails.stonesWhite + gameScoreDetails.territoryWhite + gameScoreDetails.komi}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : gameResult.startsWith('B') ? (
+                    // Quân đen thắng
+                    <div className="score-details-winner">
+                      <div className="score-details-title">🏆 Chi tiết điểm số - Quân Đen thắng</div>
+                      <div className="score-details-content">
+                        <div className="score-detail-item">
+                          <span className="score-label">Tổng số quân trên bàn cờ:</span>
+                          <span className="score-value">{gameScoreDetails.stonesBlack}</span>
+                        </div>
+                        <div className="score-detail-item">
+                          <span className="score-label">Số lãnh thổ đã chiếm:</span>
+                          <span className="score-value">{gameScoreDetails.territoryBlack}</span>
+                        </div>
+                        <div className="score-detail-total">
+                          <span className="score-label">Tổng điểm:</span>
+                          <span className="score-value total">
+                            {gameScoreDetails.stonesBlack + gameScoreDetails.territoryBlack}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
               
               {/* Hiển thị ELO cuối trận đấu (chỉ cho PvP matches) */}
               {!currentMatch?.ai_level && finalElo && (

@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me"
     jwt_refresh_secret_key: str = "change-me-refresh"
     jwt_algorithm: str = "HS256"
-    access_token_exp_minutes: int = 15  # Access token hết hạn sau 15 phút
+    access_token_exp_minutes: int = 240  # Access token hết hạn sau 4 giờ (đủ cho game session dài)
     refresh_token_exp_days: int = 7  # Refresh token hết hạn sau 7 ngày (sliding session)
     session_inactivity_timeout_days: int = 7  # Đánh out nếu không có request trong 7 ngày
 

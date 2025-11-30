@@ -15,6 +15,7 @@ import SettingsDialog from './SettingsDialog'
 import Leaderboard from './Leaderboard'
 import LeaderboardPreview from './LeaderboardPreview'
 import GoTutorial from './GoTutorial'
+import InteractiveTutorial from './InteractiveTutorial'
 import './HomePage.css'
 
 const HomePage = ({ onStartMatch }) => {
@@ -31,6 +32,8 @@ const HomePage = ({ onStartMatch }) => {
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false)
+  const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false)
   const [topPlayers, setTopPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState(() => {
@@ -65,15 +68,34 @@ const HomePage = ({ onStartMatch }) => {
     try {
       setLoading(true)
       const [matchesRes, statsRes, leaderboardRes] = await Promise.all([
-        api.get('/matches/history?limit=3'),
+        api.get('/matches/history?limit=1'), // Chỉ cần 1 để kiểm tra
         api.get('/statistics/me'),
         api.get('/statistics/leaderboard?limit=5')
       ])
-      setRecentMatches(matchesRes.data || [])
+      
+      const matches = matchesRes.data || []
+      setRecentMatches(matches)
       setStatistics(statsRes.data)
       setTopPlayers(leaderboardRes.data || [])
+      
+      // Kiểm tra xem user có matches nào chưa
+      if (!hasCheckedTutorial && matches.length === 0) {
+        // User chưa có trận đấu nào, hiển thị tutorial
+        setShowInteractiveTutorial(true)
+        setHasCheckedTutorial(true)
+      } else {
+        setHasCheckedTutorial(true)
+      }
+      
+      // Load thêm matches để hiển thị trong recent matches
+      if (matches.length > 0) {
+        const allMatchesRes = await api.get('/matches/history?limit=3')
+        setRecentMatches(allMatchesRes.data || [])
+      }
     } catch (error) {
       console.error('Failed to load home data:', error)
+      // Nếu lỗi, không hiển thị tutorial
+      setHasCheckedTutorial(true)
     } finally {
       setLoading(false)
     }
@@ -297,6 +319,12 @@ const HomePage = ({ onStartMatch }) => {
       <GoTutorial 
         isOpen={showInfoPanel}
         onClose={() => setShowInfoPanel(false)}
+      />
+
+      {/* Interactive Tutorial - Tự động hiển thị cho người mới */}
+      <InteractiveTutorial 
+        isOpen={showInteractiveTutorial}
+        onClose={() => setShowInteractiveTutorial(false)}
       />
 
       {/* Center - Main Action Button */}
