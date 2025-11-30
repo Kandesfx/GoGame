@@ -14,6 +14,7 @@ import StatisticsPanel from './StatisticsPanel'
 import SettingsDialog from './SettingsDialog'
 import Leaderboard from './Leaderboard'
 import LeaderboardPreview from './LeaderboardPreview'
+import GoTutorial from './GoTutorial'
 import './HomePage.css'
 
 const HomePage = ({ onStartMatch }) => {
@@ -59,30 +60,6 @@ const HomePage = ({ onStartMatch }) => {
     }
   }, [])
 
-  // Close info panel when clicking outside
-  useEffect(() => {
-    if (!showInfoPanel) return
-
-    const handleClickOutside = (event) => {
-      const infoPanel = document.querySelector('.info-panel')
-      const infoButton = document.querySelector('.info-icon-btn')
-      if (infoPanel && infoButton && 
-          !infoPanel.contains(event.target) && 
-          !infoButton.contains(event.target)) {
-        setShowInfoPanel(false)
-      }
-    }
-
-    // Use setTimeout to avoid immediate closure when opening
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside, true)
-    }, 200)
-
-    return () => {
-      clearTimeout(timeoutId)
-      document.removeEventListener('click', handleClickOutside, true)
-    }
-  }, [showInfoPanel])
 
   const loadData = async () => {
     try {
@@ -316,46 +293,11 @@ const HomePage = ({ onStartMatch }) => {
         </button>
       </div>
 
-      {/* Info Panel - Render outside corner-panel */}
-      {showInfoPanel && (
-        <div 
-          className="info-panel"
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-          }}
-        >
-            <div className="info-panel-header">
-              <h3>Về cờ vây</h3>
-              <button 
-                className="info-close-btn"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setShowInfoPanel(false)
-                }}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            <div className="info-panel-content">
-              <div className="info-item">
-                <h4>🎯 Mục tiêu</h4>
-                <p>Vây bắt lãnh thổ và bắt quân đối phương để giành chiến thắng.</p>
-              </div>
-              <div className="info-item">
-                <h4>⚫⚪ Luật chơi</h4>
-                <p>Đen đi trước. Người chơi lần lượt đặt quân tại các giao điểm.</p>
-              </div>
-              <div className="info-item">
-                <h4>🏆 Tính điểm</h4>
-                <p>Điểm = Lãnh thổ + Quân bắt được. Người có điểm cao nhất thắng!</p>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Go Tutorial */}
+      <GoTutorial 
+        isOpen={showInfoPanel}
+        onClose={() => setShowInfoPanel(false)}
+      />
 
       {/* Center - Main Action Button */}
       <div className="center-section">

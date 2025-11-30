@@ -176,7 +176,7 @@ def create_colab_notebook_template(output_path: Path = Path("GoGame_ML_Training_
                     "# Cell 5: Install Dependencies\n",
                     "!pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118\n",
                     "!pip install numpy pandas tqdm tensorboard scikit-learn\n",
-                    "!pip install sgf\n",
+                    "!pip install sgfmill\n",
                     "\n",
                     "import sys\n",
                     "sys.path.insert(0, str(WORK_DIR / 'code'))\n",

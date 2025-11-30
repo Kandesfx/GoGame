@@ -156,10 +156,16 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       }
     }
     
-    console.log('🎨 Determined player color:', color)
+    console.log('🎨 Determined player color:', color, {
+      userId: userIdStr,
+      blackPlayerId: currentMatch.black_player_id ? String(currentMatch.black_player_id) : null,
+      whitePlayerId: currentMatch.white_player_id ? String(currentMatch.white_player_id) : null,
+      matchId: currentMatch.id
+    })
     
     if (color) {
       setPlayerColor(color)
+      console.log('✅ Set playerColor state to:', color)
       // Hiển thị modal thông báo khi vào game lần đầu
       // Kiểm tra xem đã hiển thị cho match này chưa
       const shownKey = `playerColorShown_${currentMatch.id}`
@@ -167,6 +173,8 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
         setShowPlayerColorModal(true)
         localStorage.setItem(shownKey, 'true')
       }
+    } else {
+      console.warn('⚠️ Could not determine player color for match:', currentMatch.id)
     }
   }, [currentMatch, user])
 
@@ -651,35 +659,86 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     }
 
     // Check đúng lượt cho cả AI và PvP matches
-    // Xác định màu của user
-    const userIdStr = String(user?.id || '')
-    let userColor = null
+    // Sử dụng playerColor state (đã được set trong useEffect) thay vì tính lại
+    // Nếu playerColor chưa được set, tính lại từ currentMatch
+    let userColor = playerColor
     
-    if (currentMatch.ai_level) {
-      // AI match: xác định màu user dựa trên player_id
-      if (currentMatch.black_player_id) {
-        userColor = 'B' // User là black
-      } else if (currentMatch.white_player_id) {
-        userColor = 'W' // User là white
-      }
-    } else {
-      // PvP match
-      const userIsBlack = String(currentMatch.black_player_id) === userIdStr
-      userColor = userIsBlack ? 'B' : 'W'
+    console.log('🎯 handleBoardClick - Turn check:', {
+      playerColorState: playerColor,
+      currentPlayer: boardState.currentPlayer,
+      matchId: currentMatch.id,
+      blackPlayerId: currentMatch.black_player_id,
+      whitePlayerId: currentMatch.white_player_id,
+      userId: user?.id
+    })
+    
+    if (!userColor) {
+      // Fallback: tính lại nếu playerColor chưa được set
+      console.log('⚠️ playerColor state not set, calculating from currentMatch...')
+      const userIdStr = String(user?.id || '')
       
-      // Check đủ người chơi
-      if (!currentMatch.black_player_id || !currentMatch.white_player_id) {
-        alert('Chưa đủ người chơi. Vui lòng đợi người chơi khác tham gia.')
-        return
+      if (currentMatch.ai_level) {
+        // AI match: xác định màu user dựa trên player_id
+        if (currentMatch.black_player_id) {
+          userColor = 'B' // User là black
+        } else if (currentMatch.white_player_id) {
+          userColor = 'W' // User là white
+        }
+      } else {
+        // PvP match: kiểm tra cả black và white player
+        const blackPlayerIdStr = String(currentMatch.black_player_id || '')
+        const whitePlayerIdStr = String(currentMatch.white_player_id || '')
+        
+        if (blackPlayerIdStr === userIdStr) {
+          userColor = 'B'
+        } else if (whitePlayerIdStr === userIdStr) {
+          userColor = 'W'
+        }
+        
+        console.log('🔍 Calculated userColor from match:', {
+          userColor,
+          userIdStr,
+          blackPlayerIdStr,
+          whitePlayerIdStr,
+          match: blackPlayerIdStr === userIdStr || whitePlayerIdStr === userIdStr
+        })
+        
+        // Check đủ người chơi
+        if (!currentMatch.black_player_id || !currentMatch.white_player_id) {
+          alert('Chưa đủ người chơi. Vui lòng đợi người chơi khác tham gia.')
+          return
+        }
       }
     }
     
     // Check đúng lượt
-    if (userColor && boardState.currentPlayer !== userColor) {
-      console.log(`⚠️ Not your turn. Current: ${boardState.currentPlayer}, You: ${userColor}`)
+    if (!userColor) {
+      console.warn('⚠️ Cannot determine user color', {
+        playerColor,
+        currentMatch: {
+          id: currentMatch.id,
+          black_player_id: currentMatch.black_player_id,
+          white_player_id: currentMatch.white_player_id,
+          ai_level: currentMatch.ai_level
+        },
+        userId: user?.id
+      })
+      alert('Không thể xác định màu quân của bạn. Vui lòng thử lại.')
+      return
+    }
+    
+    if (boardState.currentPlayer !== userColor) {
+      console.log(`⚠️ Not your turn. Current: ${boardState.currentPlayer}, You: ${userColor}, playerColor state: ${playerColor}`, {
+        matchId: currentMatch.id,
+        boardStateCurrentPlayer: boardState.currentPlayer,
+        userColor,
+        playerColorState: playerColor
+      })
       alert(`Không phải lượt của bạn. Hiện tại là lượt của ${boardState.currentPlayer === 'B' ? 'Đen' : 'Trắng'}`)
       return
     }
+    
+    console.log('✅ Turn check passed:', { currentPlayer: boardState.currentPlayer, userColor })
 
     // Check if position already has a stone
     const key = `${x},${y}`
@@ -1080,20 +1139,48 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     }
 
     // Check đúng lượt cho PvP matches
-    if (!currentMatch.ai_level) {
+    // Sử dụng playerColor state (đã được set trong useEffect) thay vì tính lại
+    let userColor = playerColor
+    
+    if (!userColor) {
+      // Fallback: tính lại nếu playerColor chưa được set
       const userIdStr = String(user?.id || '')
-      const userIsBlack = String(currentMatch.black_player_id) === userIdStr
-      const userColor = userIsBlack ? 'B' : 'W'
       
-      if (boardState.currentPlayer !== userColor) {
-        alert(`Không phải lượt của bạn. Hiện tại là lượt của ${boardState.currentPlayer === 'B' ? 'Đen' : 'Trắng'}`)
-        return
+      if (currentMatch.ai_level) {
+        // AI match: xác định màu user dựa trên player_id
+        if (currentMatch.black_player_id) {
+          userColor = 'B' // User là black
+        } else if (currentMatch.white_player_id) {
+          userColor = 'W' // User là white
+        }
+      } else {
+        // PvP match: kiểm tra cả black và white player
+        const blackPlayerIdStr = String(currentMatch.black_player_id || '')
+        const whitePlayerIdStr = String(currentMatch.white_player_id || '')
+        
+        if (blackPlayerIdStr === userIdStr) {
+          userColor = 'B'
+        } else if (whitePlayerIdStr === userIdStr) {
+          userColor = 'W'
+        }
+        
+        // Check đủ người chơi
+        if (!currentMatch.black_player_id || !currentMatch.white_player_id) {
+          alert('Chưa đủ người chơi. Vui lòng đợi người chơi khác tham gia.')
+          return
+        }
       }
-      
-      if (!currentMatch.black_player_id || !currentMatch.white_player_id) {
-        alert('Chưa đủ người chơi. Vui lòng đợi người chơi khác tham gia.')
-        return
-      }
+    }
+    
+    if (!userColor) {
+      console.warn('⚠️ Cannot determine user color for pass')
+      alert('Không thể xác định màu quân của bạn. Vui lòng thử lại.')
+      return
+    }
+    
+    if (boardState.currentPlayer !== userColor) {
+      alert(`Không phải lượt của bạn. Hiện tại là lượt của ${boardState.currentPlayer === 'B' ? 'Đen' : 'Trắng'}`)
+      return
     }
 
     setIsProcessing(true)

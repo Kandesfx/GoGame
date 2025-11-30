@@ -337,7 +337,7 @@ for filename in uploaded.keys():
         print(f"✅ Moved {filename} to datasets/")
         
         # Kiểm tra dataset
-        data = torch.load(WORK_DIR / 'datasets' / filename, map_location='cpu')
+        data = torch.load(WORK_DIR / 'datasets' / filename, map_location='cpu', weights_only=False)
         print(f"   Dataset info: {len(data.get('positions', data.get('labeled_data', [])))} samples")
 
 # Nếu dataset đã có trên Google Drive
@@ -355,7 +355,7 @@ for filename in uploaded.keys():
 # Cell 5: Install packages
 !pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 !pip install numpy pandas tqdm tensorboard scikit-learn
-!pip install sgf  # For parsing SGF files
+!pip install sgfmill  # For parsing SGF files
 
 # Setup Python path để import code
 import sys
@@ -370,9 +370,12 @@ print(f"✅ Python path updated: {sys.path[:3]}")
 
 **Nếu bạn đã có dataset .pt, SKIP bước này và chuyển sang Bước 8.**
 
+⚠️ **QUAN TRỌNG**: Code dưới đây là cho Colab - KHÔNG dùng argparse! Chỉ copy phần code từ dòng `from sgfmill import sgf` đến hết phần lưu file, BỎ QUA phần `if __name__ == '__main__':` có argparse.
+
 ```python
 # Cell 6: Parse SGF Files thành Positions
-import sgf
+# ⚠️ LƯU Ý: Code này dùng trực tiếp trong Colab, KHÔNG dùng argparse!
+from sgfmill import sgf
 import numpy as np
 from pathlib import Path
 from tqdm import tqdm
@@ -400,63 +403,84 @@ def parse_sgf_coord(sgf_coord, board_size):
 def parse_sgf_file(sgf_path):
     """Parse 1 SGF file và extract tất cả positions"""
     try:
-        with open(sgf_path, 'r', encoding='utf-8', errors='ignore') as f:
-            sgf_content = f.read()
+        with open(sgf_path, 'rb') as f:
+            sgf_data = f.read()
         
-        # Parse SGF
-        game = sgf.parse(sgf_content)
+        # Parse SGF using sgfmill
+        game = sgf.Sgf_game.from_bytes(sgf_data)
         
         # Extract metadata
-        root = game.root
-        board_size = int(root.properties.get('SZ', ['19'])[0])
-        result = root.properties.get('RE', [''])[0]  # "B+12.5" or "W+R"
+        root = game.get_root()
+        board_size = game.get_size()
         
-        # Determine winner
-        if result.startswith('B'):
-            winner = 'B'
-        elif result.startswith('W'):
-            winner = 'W'
-        else:
-            winner = None
+        # Get result property (RE = Result)
+        result = ''
+        winner = None
+        try:
+            result_prop = root.get_raw('RE')
+            if result_prop and len(result_prop) > 0:
+                # result_prop is a list, get first element
+                result_value = result_prop[0]
+                if isinstance(result_value, bytes):
+                    result = result_value.decode('utf-8', errors='ignore')
+                else:
+                    result = str(result_value)
+                
+                # Parse winner from result
+                # Format examples: "B+12.5", "W+R", "B+", "W+0.5", "0" (draw)
+                result_upper = result.upper().strip()
+                if result_upper.startswith('B+') or result_upper == 'B':
+                    winner = 'B'
+                elif result_upper.startswith('W+') or result_upper == 'W':
+                    winner = 'W'
+                elif result_upper == '0' or result_upper == 'DRAW':
+                    winner = 'DRAW'  # Hòa
+                # If result doesn't match expected format, winner stays None
+        except Exception as e:
+            # If RE property doesn't exist or can't be parsed, result stays empty
+            pass
         
-        # Extract moves
+        # Extract moves by traversing the main line
         positions = []
         board = np.zeros((board_size, board_size), dtype=np.int8)
         current_player = 'B'  # Black starts
         
-        for node in game.rest:
-            # Get move
-            move = None
-            color = None
+        # Traverse main line (first child of each node)
+        node = root
+        move_number = 0
+        
+        while True:
+            # Get children
+            children = list(node)
+            if not children:
+                break
             
-            if 'B' in node.properties:
-                move = node.properties['B'][0]
-                color = 'B'
-            elif 'W' in node.properties:
-                move = node.properties['W'][0]
-                color = 'W'
-            else:
-                continue  # Pass or other
+            # Follow main line (first child)
+            node = children[0]
             
-            # Parse move coordinate
-            x, y = parse_sgf_coord(move, board_size)
-            
-            if x is not None and y is not None:
-                # Save position BEFORE move
-                positions.append({
-                    'board_state': board.copy(),
-                    'move': (x, y),
-                    'current_player': current_player,
-                    'move_number': len(positions),
-                    'board_size': board_size,
-                    'game_result': result,
-                    'winner': winner
-                })
-                
-                # Apply move (simplified - không xử lý captures, ko, etc.)
-                board[y, x] = 1 if color == 'B' else 2
-            
-            current_player = 'W' if current_player == 'B' else 'B'
+            # Get move from this node
+            move = node.get_move()
+            if move:
+                color, move_coord = move
+                if move_coord is not None:
+                    # move_coord is (x, y) tuple
+                    x, y = move_coord
+                    
+                    # Save position BEFORE move
+                    positions.append({
+                        'board_state': board.copy(),
+                        'move': (x, y),
+                        'current_player': 'B' if color == 'b' else 'W',
+                        'move_number': move_number,
+                        'board_size': board_size,
+                        'game_result': result,
+                        'winner': winner
+                    })
+                    
+                    # Apply move (simplified - không xử lý captures, ko, etc.)
+                    board[y, x] = 1 if color == 'b' else 2
+                    move_number += 1
+                    current_player = 'W' if current_player == 'B' else 'B'
         
         return positions
         
@@ -481,7 +505,8 @@ for sgf_file in tqdm(sgf_files, desc="Parsing SGF"):
             all_positions[board_size].append(pos)
 
 # Save positions theo board size
-(WORK_DIR / 'processed').mkdir(exist_ok=True)
+# ⚠️ QUAN TRỌNG: Tạo thư mục trước khi save
+(WORK_DIR / 'processed').mkdir(parents=True, exist_ok=True)
 
 for board_size in [9, 13, 19]:
     if all_positions[board_size]:
@@ -494,6 +519,28 @@ for board_size in [9, 13, 19]:
         print(f"✅ Saved {len(all_positions[board_size]):,} positions for {board_size}x{board_size}")
 
 print("\n✅ Parsing complete!")
+```
+
+**📝 Lưu ý về `winner = None`:**
+
+Nếu bạn thấy `winner = None` trong kết quả, có thể do:
+1. **SGF file thiếu thông tin kết quả** (property `RE` không có hoặc không đúng format)
+2. **Kết quả không đúng format** (ví dụ: `game_result = '66'` thay vì `'B+12.5'`)
+
+**Ảnh hưởng:**
+- ✅ **Vẫn có thể training**: Bạn vẫn có thể dùng positions để train policy network (dự đoán nước đi)
+- ⚠️ **Không train được value network**: Value network cần biết ai thắng để học đánh giá vị trí
+- ⚠️ **Không train được supervised learning với labels**: Nếu cần labels từ kết quả game
+
+**Giải pháp:**
+- **Option 1**: Bỏ qua các positions có `winner = None` khi train value network
+- **Option 2**: Dùng self-play để generate data mới với kết quả rõ ràng
+- **Option 3**: Filter và chỉ dùng games có `winner != None` cho training
+
+```python
+# Ví dụ: Filter positions có winner
+valid_positions = [pos for pos in all_positions[19] if pos['winner'] is not None]
+print(f"Valid positions with winner: {len(valid_positions)}/{len(all_positions[19])}")
 ```
 
 #### Bước 8: Generate Features và Labels (CHỈ CẦN NẾU CÓ SGF FILES)
@@ -551,7 +598,7 @@ for board_size in [9, 13, 19]:
         continue
     
     print(f"\n📊 Processing {board_size}x{board_size}...")
-    data = torch.load(input_file, map_location='cpu')
+    data = torch.load(input_file, map_location='cpu', weights_only=False)
     positions = data['positions']
     
     labeled_data = []
@@ -649,7 +696,7 @@ if dataset_dir.exists():
     if dataset_files:
         for ds_file in dataset_files:
             try:
-                data = torch.load(ds_file, map_location='cpu')
+                data = torch.load(ds_file, map_location='cpu', weights_only=False)
                 size = data.get('board_size', 'unknown')
                 total = data.get('total', len(data.get('positions', data.get('labeled_data', []))))
                 print(f"   ✅ {ds_file.name} - Board: {size}x{size}, Samples: {total:,}")
@@ -962,7 +1009,7 @@ if __name__ == '__main__':
 ```python
 # scripts/parse_sgf_to_positions.py
 
-import sgf
+from sgfmill import sgf
 from pathlib import Path
 import torch
 from tqdm import tqdm
@@ -976,61 +1023,78 @@ def parse_sgf_file(sgf_path):
         List of (board_state, move, outcome) tuples
     """
     try:
-        with open(sgf_path, 'r', encoding='utf-8') as f:
-            sgf_content = f.read()
+        with open(sgf_path, 'rb') as f:
+            sgf_data = f.read()
         
-        # Parse SGF
-        game = sgf.parse(sgf_content)
+        # Parse SGF using sgfmill
+        game = sgf.Sgf_game.from_bytes(sgf_data)
         
         # Extract metadata
-        root = game.root
-        board_size = int(root.properties.get('SZ', ['19'])[0])
-        result = root.properties.get('RE', [''])[0]  # "B+12.5" or "W+R"
+        root = game.get_root()
+        board_size = game.get_size()
+        
+        # Get result property
+        try:
+            result_prop = root.get_raw('RE')
+            if result_prop:
+                result = result_prop[0].decode('utf-8', errors='ignore') if isinstance(result_prop[0], bytes) else str(result_prop[0])
+            else:
+                result = ''
+        except:
+            result = ''
         
         # Determine winner
-        if result.startswith('B'):
+        result_upper = result.upper().strip() if result else ''
+        if result_upper.startswith('B+') or result_upper == 'B':
             winner = 'B'
-        elif result.startswith('W'):
+        elif result_upper.startswith('W+') or result_upper == 'W':
             winner = 'W'
+        elif result_upper == '0' or result_upper == 'DRAW':
+            winner = 'DRAW'  # Hòa
         else:
-            winner = None  # Unknown
+            winner = None  # Unknown - có thể do SGF file thiếu RE property hoặc format không đúng
         
-        # Extract moves
+        # Extract moves by traversing the main line
         positions = []
-        board = create_empty_board(board_size)
+        board = np.zeros((board_size, board_size), dtype=np.int8)
         current_player = 'B'  # Black starts
         
-        for node in game.rest:
-            # Get move
-            if 'B' in node.properties:
-                move = node.properties['B'][0]
-                color = 'B'
-            elif 'W' in node.properties:
-                move = node.properties['W'][0]
-                color = 'W'
-            else:
-                continue  # Pass or other
+        # Traverse main line (first child of each node)
+        node = root
+        move_number = 0
+        
+        while True:
+            # Get children
+            children = list(node)
+            if not children:
+                break
             
-            # Parse move coordinate
-            if move and move != '' and move != 'tt':  # 'tt' = pass
-                x, y = parse_sgf_coord(move, board_size)
-                
-                # Save position BEFORE move
-                positions.append({
-                    'board_state': board.copy(),
-                    'move': (x, y),
-                    'current_player': current_player,
-                    'move_number': len(positions),
-                    'board_size': board_size,
-                    'game_result': result,
-                    'winner': winner
-                })
-                
-                # Apply move
-                board[y, x] = 1 if color == 'B' else 2
-                # TODO: Apply Go rules (captures, ko, etc.)
+            # Follow main line (first child)
+            node = children[0]
             
-            current_player = 'W' if current_player == 'B' else 'B'
+            # Get move from this node
+            move = node.get_move()
+            if move:
+                color, move_coord = move
+                if move_coord is not None:
+                    # move_coord is (x, y) tuple
+                    x, y = move_coord
+                    
+                    # Save position BEFORE move
+                    positions.append({
+                        'board_state': board.copy(),
+                        'move': (x, y),
+                        'current_player': 'B' if color == 'b' else 'W',
+                        'move_number': move_number,
+                        'board_size': board_size,
+                        'game_result': result,
+                        'winner': winner
+                    })
+                    
+                    # Apply move (simplified - không xử lý captures, ko, etc.)
+                    board[y, x] = 1 if color == 'b' else 2
+                    move_number += 1
+                    current_player = 'W' if current_player == 'B' else 'B'
         
         return positions
         
@@ -1071,6 +1135,11 @@ def process_all_sgf_files(sgf_dir, output_path, board_sizes=[9, 13, 19]):
         board_sizes: Các board sizes cần xử lý
     """
     sgf_dir = Path(sgf_dir)
+    output_path = Path(output_path)
+    
+    # ⚠️ QUAN TRỌNG: Tạo thư mục output trước khi save
+    output_path.mkdir(parents=True, exist_ok=True)
+    
     all_positions = {size: [] for size in board_sizes}
     
     sgf_files = list(sgf_dir.glob("*.sgf"))
@@ -1097,6 +1166,15 @@ def process_all_sgf_files(sgf_dir, output_path, board_sizes=[9, 13, 19]):
     
     return all_positions
 
+# ⚠️ CHO COLAB: Bỏ qua phần argparse, gọi hàm trực tiếp như sau:
+# WORK_DIR = Path('/content/drive/MyDrive/GoGame_ML')
+# process_all_sgf_files(
+#     WORK_DIR / 'raw_sgf',
+#     WORK_DIR / 'processed',
+#     board_sizes=[9, 13, 19]
+# )
+
+# ⚠️ CHO COMMAND LINE (local): Sử dụng argparse như sau:
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -1112,7 +1190,18 @@ if __name__ == '__main__':
     process_all_sgf_files(args.input, output_dir, args.board_sizes)
 ```
 
-**Cách chạy**:
+**Cách chạy trên Colab** (không dùng argparse):
+```python
+# Trong Colab cell, gọi trực tiếp:
+WORK_DIR = Path('/content/drive/MyDrive/GoGame_ML')
+process_all_sgf_files(
+    WORK_DIR / 'raw_sgf',
+    WORK_DIR / 'processed',
+    board_sizes=[9, 13, 19]
+)
+```
+
+**Cách chạy trên Command Line** (local):
 ```bash
 python scripts/parse_sgf_to_positions.py \
   --input data/raw/kgs \
@@ -1253,7 +1342,7 @@ def process_dataset_with_labels(input_path, output_path):
     Process dataset và generate labels
     """
     print(f"Loading positions from {input_path}...")
-    data = torch.load(input_path)
+    data = torch.load(input_path, weights_only=False)
     positions = data['positions']
     board_size = data['board_size']
     
@@ -1299,6 +1388,14 @@ def process_dataset_with_labels(input_path, output_path):
     print(f"✅ Saved labeled dataset to {output_path}")
     print(f"Total samples: {len(labeled_data)}")
 
+# ⚠️ CHO COLAB: Bỏ qua phần argparse, gọi hàm trực tiếp như sau:
+# WORK_DIR = Path('/content/drive/MyDrive/GoGame_ML')
+# process_dataset_with_labels(
+#     WORK_DIR / 'processed' / 'positions_19x19.pt',
+#     WORK_DIR / 'datasets' / 'labeled_19x19.pt'
+# )
+
+# ⚠️ CHO COMMAND LINE (local): Sử dụng argparse như sau:
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
@@ -1376,7 +1473,7 @@ dataset_path = WORK_DIR / 'datasets' / 'positions_9x9.pt'  # Thay đổi theo bo
 
 # Load dataset
 print(f"Loading dataset from {dataset_path}...")
-dataset = torch.load(dataset_path, map_location='cpu')
+dataset = torch.load(dataset_path, map_location='cpu', weights_only=False)
 
 # Dataset có thể có format khác nhau
 if 'labeled_data' in dataset:
@@ -1656,7 +1753,7 @@ print("\n✅ Training complete!")
 # ============================================
 
 # Load best model
-best_checkpoint = torch.load(config['checkpoint_dir'] / 'best_model_epoch_X.pt')
+best_checkpoint = torch.load(config['checkpoint_dir'] / 'best_model_epoch_X.pt', weights_only=False)
 model.load_state_dict(best_checkpoint['model_state_dict'])
 
 # Evaluate on test set
@@ -1724,7 +1821,7 @@ class MLAnalysisService:
         self.model = MultiTaskModel(board_size=9)
         
         # Load checkpoint
-        checkpoint = torch.load(model_path, map_location=self.device)
+        checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model.eval()
         
@@ -1838,7 +1935,7 @@ class MLAnalysisService:
 - [ ] ✅ Thư mục `GoGame_ML/` đã tạo với cấu trúc đúng
 - [ ] ✅ SGF files đã upload vào `raw_sgf/`
 - [ ] ✅ Code model đã upload vào `code/models/`
-- [ ] ✅ Dependencies đã install (bao gồm `sgf` package)
+- [ ] ✅ Dependencies đã install (bao gồm `sgfmill` package)
 - [ ] ✅ Python path đã setup đúng
 - [ ] ✅ Parse SGF → positions (Cell 6)
 - [ ] ✅ Generate features & labels (Cell 7)

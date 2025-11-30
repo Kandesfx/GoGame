@@ -4,7 +4,7 @@ Script để parse SGF files thành positions trên Colab.
 Copy script này vào Colab Cell để parse SGF files.
 """
 
-import sgf
+from sgfmill import sgf
 import numpy as np
 import torch
 from pathlib import Path
@@ -34,63 +34,84 @@ def parse_sgf_coord(sgf_coord, board_size):
 def parse_sgf_file(sgf_path):
     """Parse 1 SGF file và extract tất cả positions"""
     try:
-        with open(sgf_path, 'r', encoding='utf-8', errors='ignore') as f:
-            sgf_content = f.read()
+        with open(sgf_path, 'rb') as f:
+            sgf_data = f.read()
         
-        # Parse SGF
-        game = sgf.parse(sgf_content)
+        # Parse SGF using sgfmill
+        game = sgf.Sgf_game.from_bytes(sgf_data)
         
         # Extract metadata
-        root = game.root
-        board_size = int(root.properties.get('SZ', ['19'])[0])
-        result = root.properties.get('RE', [''])[0]  # "B+12.5" or "W+R"
+        root = game.get_root()
+        board_size = game.get_size()
         
-        # Determine winner
-        if result.startswith('B'):
-            winner = 'B'
-        elif result.startswith('W'):
-            winner = 'W'
-        else:
-            winner = None
+        # Get result property (RE = Result)
+        result = ''
+        winner = None
+        try:
+            result_prop = root.get_raw('RE')
+            if result_prop and len(result_prop) > 0:
+                # result_prop is a list, get first element
+                result_value = result_prop[0]
+                if isinstance(result_value, bytes):
+                    result = result_value.decode('utf-8', errors='ignore')
+                else:
+                    result = str(result_value)
+                
+                # Parse winner from result
+                # Format examples: "B+12.5", "W+R", "B+", "W+0.5", "0" (draw)
+                result_upper = result.upper().strip()
+                if result_upper.startswith('B+') or result_upper == 'B':
+                    winner = 'B'
+                elif result_upper.startswith('W+') or result_upper == 'W':
+                    winner = 'W'
+                elif result_upper == '0' or result_upper == 'DRAW':
+                    winner = 'DRAW'  # Hòa
+                # If result doesn't match expected format, winner stays None
+        except Exception as e:
+            # If RE property doesn't exist or can't be parsed, result stays empty
+            pass
         
-        # Extract moves
+        # Extract moves by traversing the main line
         positions = []
         board = np.zeros((board_size, board_size), dtype=np.int8)
         current_player = 'B'  # Black starts
         
-        for node in game.rest:
-            # Get move
-            move = None
-            color = None
+        # Traverse main line (first child of each node)
+        node = root
+        move_number = 0
+        
+        while True:
+            # Get children
+            children = list(node)
+            if not children:
+                break
             
-            if 'B' in node.properties:
-                move = node.properties['B'][0]
-                color = 'B'
-            elif 'W' in node.properties:
-                move = node.properties['W'][0]
-                color = 'W'
-            else:
-                continue  # Pass or other
+            # Follow main line (first child)
+            node = children[0]
             
-            # Parse move coordinate
-            x, y = parse_sgf_coord(move, board_size)
-            
-            if x is not None and y is not None:
-                # Save position BEFORE move
-                positions.append({
-                    'board_state': board.copy(),
-                    'move': (x, y),
-                    'current_player': current_player,
-                    'move_number': len(positions),
-                    'board_size': board_size,
-                    'game_result': result,
-                    'winner': winner
-                })
-                
-                # Apply move (simplified - không xử lý captures, ko, etc.)
-                board[y, x] = 1 if color == 'B' else 2
-            
-            current_player = 'W' if current_player == 'B' else 'B'
+            # Get move from this node
+            move = node.get_move()
+            if move:
+                color, move_coord = move
+                if move_coord is not None:
+                    # move_coord is (x, y) tuple
+                    x, y = move_coord
+                    
+                    # Save position BEFORE move
+                    positions.append({
+                        'board_state': board.copy(),
+                        'move': (x, y),
+                        'current_player': 'B' if color == 'b' else 'W',
+                        'move_number': move_number,
+                        'board_size': board_size,
+                        'game_result': result,
+                        'winner': winner
+                    })
+                    
+                    # Apply move (simplified - không xử lý captures, ko, etc.)
+                    board[y, x] = 1 if color == 'b' else 2
+                    move_number += 1
+                    current_player = 'W' if current_player == 'B' else 'B'
         
         return positions
         
