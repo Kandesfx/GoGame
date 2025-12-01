@@ -143,15 +143,18 @@ def generate_value_label(
     Generate value label (win probability).
     
     Args:
-        winner: 'B', 'W', hoặc None
+        winner: 'B', 'W', 'DRAW', hoặc None
         current_player: 'B' hoặc 'W'
         game_result: String như "B+12.5" (optional, để tính chính xác hơn)
     
     Returns:
-        float: 0.0 - 1.0 (1.0 = current player wins)
+        float: 0.0 - 1.0 (1.0 = current player wins, 0.5 = draw hoặc unknown)
     """
     if winner is None:
         return 0.5  # Unknown result
+    
+    if winner == 'DRAW':
+        return 0.5  # Draw game - both players get 0.5
     
     if winner == current_player:
         return 1.0

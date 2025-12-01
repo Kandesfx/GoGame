@@ -147,7 +147,32 @@ def parse_single_sgf_file(sgf_path):
                 'type': 'invalid_board_size'
             }
         
-        result = root.properties.get('RE', [''])[0]
+        # Get result property (RE = Result) - cải tiến parsing
+        result = ''
+        winner = None
+        try:
+            result_prop = root.properties.get('RE', [])
+            if result_prop and len(result_prop) > 0:
+                result_value = result_prop[0]
+                # Handle both string and bytes
+                if isinstance(result_value, bytes):
+                    result = result_value.decode('utf-8', errors='ignore')
+                else:
+                    result = str(result_value)
+                
+                # Parse winner from result
+                # Format examples: "B+12.5", "W+R", "B+", "W+0.5", "0" (draw)
+                result_upper = result.upper().strip()
+                if result_upper.startswith('B+') or result_upper == 'B':
+                    winner = 'B'
+                elif result_upper.startswith('W+') or result_upper == 'W':
+                    winner = 'W'
+                elif result_upper == '0' or result_upper == 'DRAW':
+                    winner = 'DRAW'  # Hòa
+                # If result doesn't match expected format, winner stays None
+        except Exception as e:
+            # If RE property doesn't exist or can't be parsed, result stays empty
+            logger.debug(f"Could not parse result in {sgf_path}: {e}")
         
         # Extract handicap info
         try:
@@ -157,14 +182,6 @@ def parse_single_sgf_file(sgf_path):
         
         handicap_stones_black = root.properties.get('AB', [])
         handicap_stones_white = root.properties.get('AW', [])
-        
-        # Determine winner
-        if result.startswith('B'):
-            winner = 'B'
-        elif result.startswith('W'):
-            winner = 'W'
-        else:
-            winner = None
         
         # Initialize board
         board = np.zeros((board_size, board_size), dtype=np.int8)
