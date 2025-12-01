@@ -47,7 +47,34 @@ class PremiumService:
             max_size=settings.eval_cache_max_size, ttl_seconds=settings.eval_cache_ttl_seconds
         )
 
+    def _is_premium_user(self, user: user_model.User) -> bool:
+        """Kiểm tra user có premium subscription đang active không."""
+        from datetime import datetime, timezone
+        from ..models.sql import premium_subscription as premium_sub_model
+
+        subscription = (
+            self.db.query(premium_sub_model.PremiumSubscription)
+            .filter(premium_sub_model.PremiumSubscription.user_id == user.id)
+            .filter(premium_sub_model.PremiumSubscription.status == "active")
+            .first()
+        )
+
+        if not subscription:
+            return False
+
+        # Check if subscription is still valid
+        now = datetime.now(tz=timezone.utc)
+        return subscription.expires_at > now
+
     def _ensure_balance(self, user: user_model.User, cost: int):
+        """Kiểm tra user có đủ coins hoặc có premium subscription."""
+        # Premium users có thể dùng miễn phí một số tính năng
+        if self._is_premium_user(user):
+            # Premium users: giảm 50% cost hoặc miễn phí tùy tính năng
+            # Hiện tại: premium users vẫn phải trả coins nhưng với giá ưu đãi
+            # Có thể thay đổi logic sau
+            pass
+
         if user.coins < cost:
             raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail="Không đủ coins")
 

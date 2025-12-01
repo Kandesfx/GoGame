@@ -60,7 +60,31 @@ ON CONFLICT (id) DO NOTHING;
 \echo '✅ Đã insert sample coin transactions'
 
 -- ============================================================
--- 4. HIỂN THỊ THỐNG KÊ
+-- 4. INSERT SAMPLE PREMIUM SUBSCRIPTIONS
+-- ============================================================
+
+-- Insert sample premium subscriptions
+INSERT INTO premium_subscriptions (id, user_id, plan, status, started_at, expires_at, created_at, updated_at) VALUES
+    ('30000000-0000-0000-0000-000000000001'::UUID, 
+     '00000000-0000-0000-0000-000000000001'::UUID, 
+     'monthly', 'active', 
+     NOW() - INTERVAL '10 days', 
+     NOW() + INTERVAL '20 days', 
+     NOW() - INTERVAL '10 days', 
+     NOW()),
+    ('30000000-0000-0000-0000-000000000002'::UUID, 
+     '00000000-0000-0000-0000-000000000002'::UUID, 
+     'yearly', 'active', 
+     NOW() - INTERVAL '30 days', 
+     NOW() + INTERVAL '335 days', 
+     NOW() - INTERVAL '30 days', 
+     NOW())
+ON CONFLICT (id) DO NOTHING;
+
+\echo '✅ Đã insert sample premium subscriptions'
+
+-- ============================================================
+-- 5. HIỂN THỊ THỐNG KÊ
 -- ============================================================
 
 \echo ''
@@ -81,5 +105,12 @@ SELECT id, board_size, result, started_at FROM matches ORDER BY started_at DESC 
 \echo 'Coin Transactions:'
 SELECT COUNT(*) as total_transactions FROM coin_transactions;
 SELECT type, SUM(amount) as total_amount FROM coin_transactions GROUP BY type;
+\echo ''
+\echo 'Premium Subscriptions:'
+SELECT COUNT(*) as total_subscriptions FROM premium_subscriptions;
+SELECT u.username, ps.plan, ps.status, ps.expires_at 
+FROM premium_subscriptions ps 
+JOIN users u ON ps.user_id = u.id 
+ORDER BY ps.created_at DESC;
 \echo ''
 

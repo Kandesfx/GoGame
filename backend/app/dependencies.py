@@ -19,6 +19,7 @@ from .services.ml_service import MLService
 from .services.user_service import UserService
 from .services.statistics_service import StatisticsService
 from .services.matchmaking_service import MatchmakingService
+from .services.payment_service import PaymentService
 
 BearerToken = HTTPBearer(auto_error=False)
 
@@ -101,6 +102,10 @@ def get_matchmaking_service(db: Annotated[Session, Depends(get_db)]) -> Matchmak
         elapsed = time.time() - start_time
         logger.error(f"❌ [DEPS] get_matchmaking_service failed after {elapsed:.3f}s: {e}", exc_info=True)
         raise
+
+
+def get_payment_service(db: Annotated[Session, Depends(get_db)]) -> PaymentService:
+    return PaymentService(db=db)
 
 
 def get_current_user(

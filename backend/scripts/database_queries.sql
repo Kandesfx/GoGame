@@ -203,7 +203,79 @@ ORDER BY pr.created_at DESC
 LIMIT 10;
 
 -- ============================================================
--- 6. MAINTENANCE QUERIES
+-- 6. THỐNG KÊ PREMIUM SUBSCRIPTIONS
+-- ============================================================
+
+\echo ''
+\echo '============================================================'
+\echo '⭐ THỐNG KÊ PREMIUM SUBSCRIPTIONS'
+\echo '============================================================'
+\echo ''
+
+-- Tổng số subscriptions
+SELECT COUNT(*) AS total_subscriptions FROM premium_subscriptions;
+
+-- Subscriptions theo trạng thái
+SELECT 
+    status,
+    COUNT(*) AS count
+FROM premium_subscriptions
+GROUP BY status
+ORDER BY count DESC;
+
+-- Subscriptions theo plan
+SELECT 
+    plan,
+    COUNT(*) AS count
+FROM premium_subscriptions
+GROUP BY plan
+ORDER BY count DESC;
+
+-- Active subscriptions
+SELECT 
+    u.username,
+    ps.plan,
+    ps.status,
+    ps.started_at,
+    ps.expires_at,
+    CASE 
+        WHEN ps.expires_at > NOW() THEN 
+            EXTRACT(EPOCH FROM (ps.expires_at - NOW())) / 86400
+        ELSE 0
+    END AS days_remaining
+FROM premium_subscriptions ps
+JOIN users u ON ps.user_id = u.id
+WHERE ps.status = 'active'
+ORDER BY ps.expires_at ASC;
+
+-- Subscriptions sắp hết hạn (trong 7 ngày)
+SELECT 
+    u.username,
+    ps.plan,
+    ps.expires_at,
+    EXTRACT(EPOCH FROM (ps.expires_at - NOW())) / 86400 AS days_remaining
+FROM premium_subscriptions ps
+JOIN users u ON ps.user_id = u.id
+WHERE ps.status = 'active'
+  AND ps.expires_at > NOW()
+  AND ps.expires_at <= NOW() + INTERVAL '7 days'
+ORDER BY ps.expires_at ASC;
+
+-- Subscriptions đã hết hạn nhưng chưa update status
+SELECT 
+    u.username,
+    ps.plan,
+    ps.status,
+    ps.expires_at,
+    NOW() - ps.expires_at AS expired_duration
+FROM premium_subscriptions ps
+JOIN users u ON ps.user_id = u.id
+WHERE ps.status = 'active'
+  AND ps.expires_at < NOW()
+ORDER BY ps.expires_at DESC;
+
+-- ============================================================
+-- 7. MAINTENANCE QUERIES
 -- ============================================================
 
 \echo ''
@@ -223,6 +295,12 @@ LIMIT 10;
 -- Xóa coin transactions cũ hơn 1 năm
 -- DELETE FROM coin_transactions 
 -- WHERE created_at < NOW() - INTERVAL '1 year';
+
+-- Update expired subscriptions
+-- UPDATE premium_subscriptions 
+-- SET status = 'expired', updated_at = NOW()
+-- WHERE status = 'active' 
+--   AND expires_at < NOW();
 
 -- Vacuum database (chạy khi cần)
 -- VACUUM ANALYZE;

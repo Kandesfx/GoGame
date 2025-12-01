@@ -23,5 +23,31 @@ class CoinTransaction(BaseModel):
 
 class CoinPurchaseRequest(BaseModel):
     package_id: str
-    amount: conint(gt=0)
+    payment_token: str | None = None  # Payment token từ payment gateway
+
+
+class CoinPackage(BaseModel):
+    id: str
+    name: str
+    coins: int
+    bonus_coins: int
+    price_usd: float
+    description: str | None = None
+
+
+class CoinPackagesResponse(BaseModel):
+    packages: list[CoinPackage]
+
+
+class DailyBonusResponse(BaseModel):
+    success: bool
+    coins_earned: int | None = None
+    new_balance: int | None = None
+    message: str | None = None
+    transaction_id: UUID | None = None
+
+
+class EarnCoinsRequest(BaseModel):
+    action: Literal["complete_game", "win_game", "rank_up", "achievement", "watch_ad"]
+    amount: int | None = None  # Optional custom amount
 

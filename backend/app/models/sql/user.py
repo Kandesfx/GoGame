@@ -38,4 +38,7 @@ class User(Base):
         cascade="all,delete",
         foreign_keys="Match.white_player_id",
     )
+    premium_subscription: Mapped["PremiumSubscription | None"] = relationship(
+        "PremiumSubscription", back_populates="user", uselist=False, cascade="all,delete"
+    )
 

@@ -212,7 +212,43 @@ COMMENT ON COLUMN premium_requests.cost IS 'Chi phí (coins)';
 COMMENT ON COLUMN premium_requests.status IS 'Trạng thái (pending, processing, completed, failed)';
 
 -- ============================================================
--- 8. TẠO BẢNG ALEMBIC_VERSION (cho migrations)
+-- 8. TẠO BẢNG PREMIUM_SUBSCRIPTIONS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS premium_subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE NOT NULL,
+    plan VARCHAR(32) NOT NULL,
+    status VARCHAR(32) DEFAULT 'active' NOT NULL,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    cancelled_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    -- Foreign key
+    CONSTRAINT fk_premium_subscriptions_user FOREIGN KEY (user_id) 
+        REFERENCES users(id) ON DELETE CASCADE,
+    -- Check constraints
+    CONSTRAINT chk_premium_subscriptions_plan CHECK (plan IN ('monthly', 'yearly')),
+    CONSTRAINT chk_premium_subscriptions_status CHECK (status IN ('active', 'expired', 'cancelled'))
+);
+
+-- Indexes cho bảng premium_subscriptions
+CREATE INDEX IF NOT EXISTS ix_premium_subscriptions_user_id ON premium_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS ix_premium_subscriptions_status ON premium_subscriptions(status);
+CREATE INDEX IF NOT EXISTS ix_premium_subscriptions_expires_at ON premium_subscriptions(expires_at);
+
+-- Comments
+COMMENT ON TABLE premium_subscriptions IS 'Bảng premium subscriptions của users';
+COMMENT ON COLUMN premium_subscriptions.user_id IS 'ID của user (unique - mỗi user chỉ có 1 subscription)';
+COMMENT ON COLUMN premium_subscriptions.plan IS 'Gói subscription (monthly hoặc yearly)';
+COMMENT ON COLUMN premium_subscriptions.status IS 'Trạng thái (active, expired, cancelled)';
+COMMENT ON COLUMN premium_subscriptions.started_at IS 'Thời gian bắt đầu subscription';
+COMMENT ON COLUMN premium_subscriptions.expires_at IS 'Thời gian hết hạn subscription';
+COMMENT ON COLUMN premium_subscriptions.cancelled_at IS 'Thời gian hủy subscription (nếu có)';
+
+-- ============================================================
+-- 9. TẠO BẢNG ALEMBIC_VERSION (cho migrations)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS alembic_version (
@@ -222,7 +258,7 @@ CREATE TABLE IF NOT EXISTS alembic_version (
 COMMENT ON TABLE alembic_version IS 'Bảng tracking Alembic migrations';
 
 -- ============================================================
--- 9. GRANT PERMISSIONS
+-- 10. GRANT PERMISSIONS
 -- ============================================================
 
 -- Cấp quyền cho user postgres (nếu cần)
