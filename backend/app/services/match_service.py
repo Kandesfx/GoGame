@@ -139,29 +139,46 @@ class MatchService:
         Returns:
             True nếu vi phạm Ko rule (illegal), False nếu hợp lệ.
         """
-        # Chỉ kiểm tra ko nếu có ko_position và nước đi đang cố gắng đánh vào đó
-        if ko_position is None:
+        # 1. KO CHUẨN (không phải superko):
+        #    - Chỉ cấm nước đi làm bàn cờ quay lại TRẠNG THÁI NGAY TRƯỚC NƯỚC BẮT.
+        #    - Không cấm mọi lặp trạng thái trong toàn ván (không phải siêu KO).
+
+        # Nếu không có ko_position hoặc nước đi KHÔNG đánh đúng vào vị trí ko → chắc chắn không phải KO
+        # (trong KO chuẩn, tái chiếm lại xảy ra tại đúng vị trí quân vừa bị bắt).
+        if ko_position is None or (x, y) != ko_position:
             return False
-        
-        if (x, y) != ko_position:
-            return False  # Nước đi không đánh vào ko_position → không vi phạm ko
-        
-        # Nước đi đang cố gắng đánh vào ko_position
-        # Kiểm tra xem nước đi trước đó có phá vỡ ko không
-        # Nếu nước đi trước đó đã đánh ở chỗ khác (không phải ko_position), 
-        # thì ko đã bị phá vỡ và không còn áp dụng
-        
-        if last_move_position is not None:
-            # Nếu nước đi trước đó đánh ở chỗ khác (không phải ko_position) → ko đã bị phá vỡ
-            if last_move_position != ko_position:
-                logger.info(f"🔔 KO was broken by previous move at {last_move_position} (not at ko_position {ko_position}), allowing this move")
-                return False  # Ko đã bị phá vỡ, cho phép nước đi này
-        
-        # Nếu nước đi trước đó là pass (last_move_position is None)
-        # hoặc đánh vào ko_position (vẫn trong chu kỳ ko)
-        # → nước đi hiện tại vào ko_position là vi phạm
-        logger.info(f"🔔 KO rule violation: trying to play at ko_position {ko_position} after previous move at {last_move_position}")
-        return True  # Vi phạm Ko rule
+
+        # Cần có ít nhất 2 trạng thái trong lịch sử để so sánh:
+        # - board_history[-1]: trạng thái ngay sau nước đi trước đó (thường là nước bắt tạo KO)
+        # - board_history[-2]: trạng thái NGAY TRƯỚC nước bắt đó
+        #
+        # Luật KO: cấm nước đi làm bàn cờ quay lại trạng thái board_history[-2].
+        if not board_history or len(board_history) < 2:
+            # Không đủ thông tin lịch sử → không thể khẳng định là KO, cho phép nước đi
+            return False
+
+        previous_state_before_capture = board_history[-2]
+
+        # Xây dựng trạng thái bàn cờ GIẢ ĐỊNH sau khi thực hiện nước đi (bao gồm cả việc bắt quân)
+        move_key = f"{x},{y}"
+        board_after = {**board_position, move_key: color}
+
+        # Xóa các quân bị bắt (các vị trí này sẽ trở thành trống)
+        for cx, cy in captured_stones:
+            captured_key = f"{cx},{cy}"
+            if captured_key in board_after:
+                del board_after[captured_key]
+
+        # Nếu trạng thái giả định sau nước đi giống HỆT trạng thái trước nước bắt → VI PHẠM KO
+        if self._compare_board_positions(board_after, previous_state_before_capture):
+            logger.info(
+                f"🔔 KO rule violation: move at ({x}, {y}) would recreate previous board state "
+                f"(two moves ago) → standard Ko, not allowed"
+            )
+            return True
+
+        # Nếu không tạo lại trạng thái đó → KHÔNG phải KO (được phép đi)
+        return False
     
     def _compare_board_positions(self, board1: dict, board2: dict) -> bool:
         """
@@ -433,24 +450,55 @@ class MatchService:
         self.db.refresh(match)
         return match
 
-    def get_match(self, match_id: UUID) -> match_model.Match:
-        """Lấy match từ database.
-        
-        Raises:
-            ValueError: Nếu match không tồn tại
-        """
+    def get_match(self, match_id: UUID | str) -> match_model.Match:
+        """Lấy match từ database, chấp nhận cả UUID object lẫn string."""
         import logging
         logger = logging.getLogger(__name__)
         
-        match_id_str = str(match_id)
-        logger.debug(f"🔍 [GET_MATCH] Looking for match: {match_id_str}")
+        if match_id is None:
+            raise ValueError("Match ID không hợp lệ (None)")
         
-        match = self.db.get(match_model.Match, match_id_str)
+        match_id_str = str(match_id).strip()
+        candidate_ids: list[str] = []
+        
+        if match_id_str:
+            candidate_ids.append(match_id_str)
+        try:
+            # Chuẩn hóa UUID -> string có dấu gạch
+            normalized = str(UUID(match_id_str))
+            if normalized not in candidate_ids:
+                candidate_ids.append(normalized)
+        except Exception:
+            # Không phải UUID hợp lệ - bỏ qua
+            pass
+        
+        logger.debug(f"🔍 [GET_MATCH] Looking for match, candidates={candidate_ids}")
+        
+        match = None
+        for candidate in candidate_ids:
+            try:
+                match = self.db.get(match_model.Match, candidate)
+            except Exception as exc:
+                logger.warning(f"⚠️ [GET_MATCH] db.get failed for candidate {candidate}: {exc}")
+            if match:
+                break
+        
+        if not match and candidate_ids:
+            # Fallback query phòng trường hợp Session.get không hoạt động do type mismatch
+            match = (
+                self.db.query(match_model.Match)
+                .filter(match_model.Match.id.in_(candidate_ids))
+                .first()
+            )
+        
         if not match:
-            logger.error(f"❌ [GET_MATCH] Match {match_id_str} not found in database")
+            logger.error(f"❌ [GET_MATCH] Match not found for any of candidates={candidate_ids or [match_id]}")
             raise ValueError(f"Match không tồn tại. Match ID: {match_id_str}")
         
-        logger.debug(f"✅ [GET_MATCH] Found match {match_id_str} (black={match.black_player_id}, white={match.white_player_id})")
+        logger.debug(
+            f"✅ [GET_MATCH] Found match {match.id} "
+            f"(black={match.black_player_id}, white={match.white_player_id})"
+        )
         return match
 
     async def get_match_state(self, match: match_model.Match) -> dict | None:
@@ -719,18 +767,32 @@ class MatchService:
                 move.color = expected_user_color
         
         logger.debug(f"Move: {move.color} ({move.x}, {move.y}) for match {match.id}")
-        
-        # Check nếu đối thủ đã disconnect (chỉ cho PvP matches)
-        if current_user_id and not match.ai_level:
-            if self.check_opponent_disconnected(match, current_user_id):
-                # Đối thủ đã disconnect → auto-resign match (đối thủ thua)
-                opponent_id = match.white_player_id if match.black_player_id == current_user_id else match.black_player_id
-                if opponent_id:
-                    opponent = self.db.get(user_model.User, opponent_id)
-                    if opponent:
-                        logger.info(f"Opponent {opponent_id} disconnected, auto-resigning match {match.id}")
-                        self.resign_match(match, opponent)
-                        raise ValueError("Đối thủ đã rời khỏi trận đấu. Bạn thắng!")
+
+        # NOTE: Tạm thời **tắt** logic auto-thắng khi đối thủ có match active khác.
+        # Lý do: Với cách hiện tại (chỉ cần đối thủ có bất kỳ match nào khác chưa kết thúc),
+        # hệ thống rất dễ hiểu nhầm là "đối thủ đã rời trận", đặc biệt khi:
+        #   - Người chơi đang test trên nhiều trình duyệt / thiết bị
+        #   - Người chơi còn những ván AI/PvP cũ chưa kết thúc
+        # Điều này dẫn tới việc nước đi bị reject với message
+        # "Đối thủ đã rời khỏi trận đấu. Bạn thắng!" mặc dù đối thủ vẫn đang chơi bình thường.
+        #
+        # Nếu sau này muốn bật lại, cần cải tiến check_opponent_disconnected để:
+        #   - Phân biệt rõ match hiện tại và match mới tạo (so sánh started_at)
+        #   - Có thể chỉ áp dụng cho ranked / ladder matches
+        #   - Hoặc dùng heartbeat / websocket để phát hiện disconnect thực sự.
+        #
+        # Giữ lại block cũ để dễ refactor khi cần:
+        #
+        # if current_user_id and not match.ai_level:
+        #     if self.check_opponent_disconnected(match, current_user_id):
+        #         # Đối thủ đã disconnect → auto-resign match (đối thủ thua)
+        #         opponent_id = match.white_player_id if match.black_player_id == current_user_id else match.black_player_id
+        #         if opponent_id:
+        #             opponent = self.db.get(user_model.User, opponent_id)
+        #             if opponent:
+        #                 logger.info(f"Opponent {opponent_id} disconnected, auto-resigning match {match.id}")
+        #                 self.resign_match(match, opponent)
+        #                 raise ValueError("Đối thủ đã rời khỏi trận đấu. Bạn thắng!")
         
         if not go:
             # Fallback nếu không có gogame_py - dùng wrapper

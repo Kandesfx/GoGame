@@ -314,8 +314,8 @@ const MatchFoundDialog = ({ match, onStart, onCancel }) => {
           <div className="match-found-info">
             <div className="player-info-section">
               <div className="player-info you">
-                <div className="player-label">Bạn</div>
-                <div className="player-name">{match.user_color === 'B' ? 'Đen' : 'Trắng'}</div>
+                <div className="player-name">{user?.username || "Bạn"}</div>
+                <div className="player-color">{userColor}</div>
                 <div className="player-status">
                   {isReady ? (
                     <span className="status-ready">
@@ -330,7 +330,6 @@ const MatchFoundDialog = ({ match, onStart, onCancel }) => {
               <div className="vs-divider">VS</div>
 
               <div className="player-info opponent">
-                <div className="player-label">Đối thủ</div>
                 <div className="player-name">{opponentName}</div>
                 <div className="player-color">{opponentColor}</div>
                 <div className="player-status">

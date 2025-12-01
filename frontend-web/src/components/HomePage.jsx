@@ -201,6 +201,10 @@ const HomePage = ({ onStartMatch }) => {
 
   const handleLogout = () => {
     if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
+      // Reset matchmaking related states before logging out to avoid leaking old match info
+      setShowMatchFoundDialog(false)
+      setFoundMatch(null)
+      setShowMatchmakingDialog(false)
       logout()
     }
   }
