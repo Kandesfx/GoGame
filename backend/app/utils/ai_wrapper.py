@@ -44,14 +44,14 @@ def call_ai_select_move(board_state: Dict[str, Any], level: int) -> Optional[Dic
     
     # Timeout calculation:
     # Level 1-2 (Minimax): Nhanh, 10-15 giây đủ
-    # Level 3 (Minimax depth 4): Cần 20-40 giây (tùy board size)
-    # Level 4 (Minimax depth 5): Cần 40-80 giây (tùy board size)
+    # Level 3 (Minimax depth 4): Cần 30-90 giây (tùy board size)
+    # Level 4 (Minimax depth 5): Cần 60-150 giây (tùy board size)
     # Board size lớn hơn cần thêm thời gian
     timeout_map = {
         1: 15,   # Minimax depth 1 - rất nhanh
         2: 20,   # Minimax depth 2 - nhanh
-        3: 60 if board_size >= 19 else 40 if board_size >= 13 else 20,   # Minimax depth 4 (tự động điều chỉnh)
-        4: 120 if board_size >= 19 else 80 if board_size >= 13 else 40,  # Minimax depth 5 (tự động điều chỉnh)
+        3: 90 if board_size >= 19 else 60 if board_size >= 13 else 30,   # Minimax depth 4 (tự động điều chỉnh)
+        4: 150 if board_size >= 19 else 100 if board_size >= 13 else 60,  # Minimax depth 5 (tự động điều chỉnh)
     }
     
     timeout = timeout_map.get(level, 30)

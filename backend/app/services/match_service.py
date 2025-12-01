@@ -118,23 +118,77 @@ class MatchService:
     
     def _check_ko_rule_fallback(self, board_position: dict, x: int, y: int, color: str, 
                                  captured_stones: List[Tuple[int, int]], board_size: int, 
-                                 ko_position: Optional[Tuple[int, int]]) -> bool:
+                                 ko_position: Optional[Tuple[int, int]], 
+                                 board_history: Optional[List[dict]] = None,
+                                 last_move_position: Optional[Tuple[int, int]] = None) -> bool:
         """
         Kiểm tra Ko rule trong fallback mode.
-        Ko rule: Không được đặt quân tại vị trí mà nước đi trước đó vừa bắt được một quân đơn lẻ.
+        Ko rule: Không được đặt quân tại vị trí mà nước đi trước đó vừa bắt được một quân đơn lẻ,
+        TRỪ KHI nước đi ở giữa (nước đi trước đó) đã đánh ở chỗ khác (phá vỡ ko).
+        
+        Args:
+            board_position: Trạng thái bàn cờ hiện tại (trước khi đặt quân)
+            x, y: Vị trí đặt quân
+            color: Màu quân
+            captured_stones: Danh sách quân bị bắt
+            board_size: Kích thước bàn cờ
+            ko_position: Vị trí ko từ nước đi trước
+            board_history: Lịch sử các trạng thái bàn cờ (board_position) trước đó
+            last_move_position: Vị trí của nước đi trước đó (x, y) hoặc None nếu là pass
         
         Returns:
             True nếu vi phạm Ko rule (illegal), False nếu hợp lệ.
         """
-        # Nếu không có ko_position → không vi phạm Ko
+        # Chỉ kiểm tra ko nếu có ko_position và nước đi đang cố gắng đánh vào đó
         if ko_position is None:
             return False
         
-        # Kiểm tra xem nước đi có đặt tại vị trí Ko không
-        if (x, y) == ko_position:
-            return True  # Vi phạm Ko rule
+        if (x, y) != ko_position:
+            return False  # Nước đi không đánh vào ko_position → không vi phạm ko
         
-        return False
+        # Nước đi đang cố gắng đánh vào ko_position
+        # Kiểm tra xem nước đi trước đó có phá vỡ ko không
+        # Nếu nước đi trước đó đã đánh ở chỗ khác (không phải ko_position), 
+        # thì ko đã bị phá vỡ và không còn áp dụng
+        
+        if last_move_position is not None:
+            # Nếu nước đi trước đó đánh ở chỗ khác (không phải ko_position) → ko đã bị phá vỡ
+            if last_move_position != ko_position:
+                logger.info(f"🔔 KO was broken by previous move at {last_move_position} (not at ko_position {ko_position}), allowing this move")
+                return False  # Ko đã bị phá vỡ, cho phép nước đi này
+        
+        # Nếu nước đi trước đó là pass (last_move_position is None)
+        # hoặc đánh vào ko_position (vẫn trong chu kỳ ko)
+        # → nước đi hiện tại vào ko_position là vi phạm
+        logger.info(f"🔔 KO rule violation: trying to play at ko_position {ko_position} after previous move at {last_move_position}")
+        return True  # Vi phạm Ko rule
+    
+    def _compare_board_positions(self, board1: dict, board2: dict) -> bool:
+        """
+        So sánh hai trạng thái bàn cờ có giống nhau không.
+        
+        Args:
+            board1: Trạng thái bàn cờ thứ nhất
+            board2: Trạng thái bàn cờ thứ hai
+        
+        Returns:
+            True nếu hai trạng thái giống nhau, False nếu khác.
+        """
+        # So sánh số lượng quân
+        if len(board1) != len(board2):
+            return False
+        
+        # So sánh từng vị trí
+        for key, value in board1.items():
+            if key not in board2 or board2[key] != value:
+                return False
+        
+        # Kiểm tra board2 có quân nào không có trong board1 không
+        for key in board2:
+            if key not in board1:
+                return False
+        
+        return True
     
     def _calculate_ko_position_fallback(self, board_position: dict, x: int, y: int, color: str,
                                         captured_stones: List[Tuple[int, int]], board_size: int) -> Optional[Tuple[int, int]]:
@@ -707,6 +761,9 @@ class MatchService:
             if ko_position_doc and isinstance(ko_position_doc, list) and len(ko_position_doc) == 2:
                 ko_position = tuple(ko_position_doc)
             
+            # Lấy board_history từ game state (lịch sử các trạng thái bàn cờ)
+            board_history = game_doc.get("board_history", [])
+            
             # Rebuild board_position từ moves hiện tại (trước khi thêm move mới)
             board_position_before = game_doc.get("board_position", {})
             if not board_position_before:
@@ -739,19 +796,28 @@ class MatchService:
             if move_key in board_position_before:
                 raise ValueError(f"Invalid move: ({move.x}, {move.y}) - position already occupied")
             
-            # Validate Ko rule TRƯỚC KHI tính capture
-            # QUAN TRỌNG: Luật KO (cấm cướp cờ):
-            # - Nếu bạn vừa ăn 1 quân ở một điểm nào đó, đối thủ không được phép ngay lập tức 
-            #   ăn lại đúng quân vừa bắt của bạn tại đúng vị trí đó trong nước tiếp theo.
-            # - Họ phải đánh ở chỗ khác trước 1 nước, sau đó mới được quay lại ăn.
-            # - KO rule áp dụng BẤT KỂ có capture hay không - không được đặt tại ko_position
-            if ko_position and (move.x, move.y) == ko_position:
-                raise ValueError(f"Invalid move: ({move.x}, {move.y}) - violates Ko rule (cannot immediately recapture at ko position)")
-            
-            # Tính captured stones trong fallback mode
+            # Tính captured stones trong fallback mode (cần tính trước để kiểm tra ko bằng cách so sánh state)
             captured_stones = self._calculate_capture_fallback(
                 board_position_before, move.x, move.y, move.color, match.board_size
             )
+            
+            # Lấy thông tin về nước đi trước đó để kiểm tra xem có phá vỡ ko không
+            last_move_position = None
+            if moves and len(moves) > 0:
+                last_move = moves[-1]
+                if last_move.get("position") is not None:
+                    last_move_pos = last_move["position"]
+                    last_move_position = tuple(last_move_pos) if isinstance(last_move_pos, list) else last_move_pos
+            
+            # Validate Ko rule SAU KHI tính capture (để có thể so sánh state)
+            # QUAN TRỌNG: Luật KO (cấm cướp cờ):
+            # - Không được đặt quân tại vị trí mà nước đi trước đó vừa bắt được một quân đơn lẻ.
+            # - TRỪ KHI nước đi ở giữa (nước đi trước đó) đã đánh ở chỗ khác (phá vỡ ko).
+            if self._check_ko_rule_fallback(
+                board_position_before, move.x, move.y, move.color, 
+                captured_stones, match.board_size, ko_position, board_history, last_move_position
+            ):
+                raise ValueError(f"Invalid move: ({move.x}, {move.y}) - violates Ko rule (cannot immediately recapture at ko position)")
             
             # Validate suicide rule: Sau khi đặt quân và capture, nhóm quân mình phải còn khí
             # QUAN TRỌNG: Một nước đi "suicide" vẫn hợp lệ nếu nó dẫn đến việc ăn quân đối thủ
@@ -867,6 +933,13 @@ class MatchService:
                 "captured": captured_stones
             })
             
+            # Cập nhật board_history: thêm board_position_after vào lịch sử
+            # QUAN TRỌNG: Lưu board_position SAU KHI đặt quân để có thể so sánh với state cách đó 2 nước
+            # Giới hạn board_history để chỉ lưu 10 trạng thái gần nhất (đủ để kiểm tra ko)
+            new_board_history = board_history + [board_position_after.copy()]
+            if len(new_board_history) > 10:
+                new_board_history = new_board_history[-10:]  # Chỉ giữ 10 trạng thái gần nhất
+            
             await collection.update_one(
                 {"match_id": match.id},
                 {
@@ -875,6 +948,7 @@ class MatchService:
                         "moves": moves,  # Update toàn bộ moves array
                         "current_player": "W" if move.color == "B" else "B",
                         "board_position": board_position_after,  # Cập nhật board_position sau capture
+                        "board_history": new_board_history,  # Cập nhật board_history
                         "prisoners_black": prisoners_black,
                         "prisoners_white": prisoners_white,
                         "ko_position": list(new_ko_position) if new_ko_position else None,  # Cập nhật ko_position
@@ -1027,6 +1101,16 @@ class MatchService:
                 elif stone == go.Stone.White:
                     board_position[f"{x},{y}"] = "W"
         
+        # Lấy board_history hiện tại và cập nhật
+        game_doc = await collection.find_one({"match_id": match.id}) or {}
+        board_history = game_doc.get("board_history", [])
+        
+        # Thêm board_position (sau khi đặt quân) vào board_history
+        # board_position đã được tính toán ở trên và chứa trạng thái SAU KHI đặt quân
+        new_board_history = board_history + [board_position.copy()]
+        if len(new_board_history) > 10:
+            new_board_history = new_board_history[-10:]  # Chỉ giữ 10 trạng thái gần nhất
+        
         # Đảm bảo board_position được cập nhật trong MongoDB
         await collection.update_one(
             {"match_id": match.id},
@@ -1038,6 +1122,7 @@ class MatchService:
                     "prisoners_black": board.get_prisoners(go.Color.Black),
                     "prisoners_white": board.get_prisoners(go.Color.White),
                     "board_position": board_position,  # Cập nhật board_position sau mỗi move
+                    "board_history": new_board_history,  # Cập nhật board_history
                 },
             },
             upsert=True,
@@ -1351,6 +1436,12 @@ class MatchService:
                     "captured": captured_stones,
                 }
                 
+                # Cập nhật board_history: thêm board_position vào lịch sử
+                board_history = (game_doc or {}).get("board_history", [])
+                new_board_history = board_history + [board_position.copy()]
+                if len(new_board_history) > 10:
+                    new_board_history = new_board_history[-10:]  # Chỉ giữ 10 trạng thái gần nhất
+                
                 # Tính board diff
                 board_diff = {
                     "added": {},
@@ -1372,6 +1463,7 @@ class MatchService:
                             "prisoners_black": board.get_prisoners(go.Color.Black),
                             "prisoners_white": board.get_prisoners(go.Color.White),
                             "board_position": board_position,
+                            "board_history": new_board_history,  # Cập nhật board_history
                         },
                     },
                 )
@@ -1548,6 +1640,12 @@ class MatchService:
             "captured": captured_stones,
         }
         
+        # Cập nhật board_history: thêm board_position_after vào lịch sử
+        board_history = game_doc.get("board_history", [])
+        new_board_history = board_history + [board_position_after.copy()]
+        if len(new_board_history) > 10:
+            new_board_history = new_board_history[-10:]  # Chỉ giữ 10 trạng thái gần nhất
+        
         # Sau khi AI đánh, đến lượt người chơi (màu đối lập với AI)
         next_player = "W" if ai_color == "B" else "B"
         print(f"🤖 [WRAPPER] AI move done. Next player: {next_player}")
@@ -1559,6 +1657,7 @@ class MatchService:
                 "$set": {
                     "current_player": next_player,
                     "board_position": board_position_after,
+                    "board_history": new_board_history,  # Cập nhật board_history
                     "prisoners_black": prisoners_black,
                     "prisoners_white": prisoners_white,
                 },

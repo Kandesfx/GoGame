@@ -89,12 +89,13 @@ const checkAndRefreshToken = async () => {
       return
     }
     
-    // Kiểm tra nếu token còn ít hơn 30 phút (1800 giây) thì refresh
+    // Kiểm tra nếu token còn ít hơn 60 phút (3600 giây) thì refresh
+    // Refresh sớm để tránh gián đoạn game session
     const now = Math.floor(Date.now() / 1000)
     const timeUntilExpiry = decoded.exp - now
     
-    // Refresh nếu còn ít hơn 30 phút (hoặc đã hết hạn)
-    if (timeUntilExpiry < 1800) {
+    // Refresh nếu còn ít hơn 60 phút (hoặc đã hết hạn)
+    if (timeUntilExpiry < 3600) {
       console.log(`🔄 Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes - refreshing proactively...`)
       isRefreshing = true
       
