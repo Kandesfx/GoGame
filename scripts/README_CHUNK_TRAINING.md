@@ -135,6 +135,92 @@ from chunk_dataset import ChunkDataset
 5. **Monitor RAM**: Theo dõi trong Colab resource monitor
 
 ---
+## ⛑ Backup kết quả training trên Colab (tránh mất file khi reset)
+
+Ngay cả khi bạn train trực tiếp trên Google Drive, nên **backup định kỳ** để tránh mất file khi Colab bị disconnect/reset.
+
+### 1️⃣ Thêm hàm backup vào notebook Colab
+
+Thêm 1 cell trong notebook:
+
+```python
+import shutil
+import datetime
+from pathlib import Path
+
+WORK_DIR = Path('/content/drive/MyDrive/GoGame_ML')  # Giống phần train
+BACKUP_ROOT = WORK_DIR / 'backups'
+
+def backup_training_results(
+    src_dirs=('checkpoints', 'logs', 'outputs'),
+    extra_paths=()
+):
+    """Tạo 1 bản backup toàn bộ kết quả train vào Google Drive."""
+    BACKUP_ROOT.mkdir(exist_ok=True)
+
+    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    backup_dir = BACKUP_ROOT / f'backup_{ts}'
+    backup_dir.mkdir()
+
+    print(f"📦 Đang tạo backup tại: {backup_dir}")
+
+    # Copy các thư mục chuẩn
+    for name in src_dirs:
+        src = WORK_DIR / name
+        dst = backup_dir / name
+        if src.exists():
+            print(f"  ➜ Copy dir: {src} -> {dst}")
+            shutil.copytree(src, dst)
+        else:
+            print(f"  ⚠️ Bỏ qua (không tồn tại): {src}")
+
+    # Copy thêm file/thư mục khác nếu cần
+    for p in extra_paths:
+        p = Path(p)
+        if not p.exists():
+            print(f"  ⚠️ Bỏ qua (không tồn tại): {p}")
+            continue
+        dst = backup_dir / p.name
+        if p.is_dir():
+            print(f"  ➜ Copy dir: {p} -> {dst}")
+            shutil.copytree(p, dst)
+        else:
+            print(f"  ➜ Copy file: {p} -> {dst}")
+            shutil.copy2(p, dst)
+
+    print("✅ Backup hoàn thành!")
+    return backup_dir
+```
+
+### 2️⃣ Gọi backup trong lúc train
+
+- **Định kỳ sau vài epoch** hoặc trước khi dừng notebook, chạy:
+
+```python
+backup_training_results()
+```
+
+- Các bản backup sẽ nằm ở:
+
+```text
+GoGame_ML/backups/backup_YYYYMMDD_HHMMSS/
+```
+
+### 3️⃣ (Tuỳ chọn) Tạo file ZIP để tải về máy
+
+```python
+from google.colab import files
+
+def backup_and_download():
+    backup_dir = backup_training_results()
+    zip_path = shutil.make_archive(str(backup_dir), 'zip', root_dir=backup_dir)
+    print(f"📁 ZIP path: {zip_path}")
+    files.download(zip_path)
+
+# Gọi khi muốn backup + tải về local:
+backup_and_download()
+```
+
 
 **Chúc bạn train thành công! 🎉**
 

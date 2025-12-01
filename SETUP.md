@@ -282,7 +282,6 @@ python -c "import gogame_py; print('OK')"
 **Giải pháp:**
 - Copy các DLL cần thiết từ MSYS2 vào cùng thư mục với `.pyd`
 - Hoặc dùng script: `scripts/setup_gogame_py_for_backend.sh`
-
 ### 2.7. Chạy Backend Server
 
 ```bash

@@ -243,9 +243,8 @@ def train_model(
             batch_size=batch_size,
             shuffle=True,
             num_workers=0,
-            pin_memory=False,  # Tắt pin_memory để giảm RAM
-            prefetch_factor=2,  # Giảm prefetch
-            persistent_workers=False
+            pin_memory=False,
+            prefetch_factor=None,   # ⭐ fix lỗi
         )
     else:
         # Load từ merged file
