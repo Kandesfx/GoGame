@@ -1,0 +1,16 @@
+# Requirements for local processing scripts
+# Install with: pip install -r scripts/requirements_local.txt
+
+# SGF parsing
+sgf>=0.5
+
+# Data processing
+numpy>=1.20.0
+torch>=1.10.0
+
+# Progress bars
+tqdm>=4.60.0
+
+# Optional: for better performance
+# numba>=0.56.0  # JIT compilation (optional)
+

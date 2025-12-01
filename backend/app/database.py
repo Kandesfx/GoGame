@@ -1,0 +1,125 @@
+"""Kết nối cơ sở dữ liệu PostgreSQL & MongoDB."""
+
+import asyncio
+import logging
+from collections.abc import Generator
+from typing import AsyncIterator
+
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
+
+from .config import get_settings
+
+# Cấu hình logging sớm để giảm verbosity của SQLAlchemy
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.dialects').setLevel(logging.WARNING)
+
+settings = get_settings()
+
+# SQLAlchemy setup - tắt echo vì đã cấu hình logging riêng
+engine = create_engine(settings.postgres_dsn, echo=False, future=True, pool_pre_ping=True)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False, class_=Session)
+Base = declarative_base()
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Dependency Sync DB session cho FastAPI."""
+
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+# Mongo setup
+_mongo_client: AsyncIOMotorClient | None = None
+
+
+def get_mongo_client() -> AsyncIOMotorClient:
+    """Lazy khởi tạo Mongo client để tránh tạo nhiều kết nối."""
+    import time
+    logger = logging.getLogger(__name__)
+    
+    global _mongo_client  # noqa: PLW0603
+    if _mongo_client is None:
+        start_time = time.time()
+        try:
+            # Tạo client với serverSelectionTimeoutMS ngắn để tránh block quá lâu
+            # connectTimeoutMS cũng ngắn để không block khi MongoDB không chạy
+            _mongo_client = AsyncIOMotorClient(
+                settings.mongo_dsn,
+                serverSelectionTimeoutMS=2000,  # 2 seconds timeout - ngắn hơn
+                connectTimeoutMS=2000,  # 2 seconds connection timeout
+                socketTimeoutMS=2000,  # 2 seconds socket timeout
+            )
+            elapsed = time.time() - start_time
+            if elapsed > 0.1:
+                logger.warning(f"⏱️ [MONGO] Creating Mongo client took {elapsed:.3f}s")
+            else:
+                logger.debug(f"✅ [MONGO] Mongo client created in {elapsed:.3f}s")
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.warning(f"⚠️ [MONGO] Failed to create Mongo client after {elapsed:.3f}s: {e}")
+            # KHÔNG raise - cho phép app chạy mà không có MongoDB
+            # Tạo một dummy client với timeout rất ngắn để fail nhanh nếu MongoDB không chạy
+            try:
+                _mongo_client = AsyncIOMotorClient(
+                    settings.mongo_dsn,
+                    serverSelectionTimeoutMS=1,  # Rất ngắn để fail nhanh
+                    connectTimeoutMS=1,
+                )
+            except Exception:
+                # Nếu vẫn fail, tạo client với default settings (sẽ fail khi dùng)
+                _mongo_client = AsyncIOMotorClient(settings.mongo_dsn)
+    return _mongo_client
+
+
+async def get_mongo_db() -> AsyncIterator[AsyncIOMotorDatabase | None]:
+    """Dependency trả về database MongoDB.
+    
+    KHÔNG block nếu MongoDB không available - chỉ log warning và yield None.
+    KHÔNG raise exception - luôn yield (có thể là None) để tránh generator error.
+    """
+    import time
+    logger = logging.getLogger(__name__)
+    
+    logger.info("🟡 [MONGO] get_mongo_db called - getting MongoDB connection...")
+    start_time = time.time()
+    
+    db = None
+    try:
+        client = get_mongo_client()
+        if client:
+            db = client[settings.mongo_database]
+        
+        # KHÔNG test connection - chỉ lấy client và yield ngay để không block
+        # MongoDB sẽ được test khi thực sự cần dùng
+        
+        elapsed = time.time() - start_time
+        if elapsed > 0.05:
+            logger.warning(f"⏱️ [MONGO] get_mongo_db took {elapsed:.3f}s to get client")
+        else:
+            logger.info(f"✅ [MONGO] get_mongo_db got client in {elapsed:.3f}s")
+    except Exception as e:
+        elapsed = time.time() - start_time
+        logger.warning(f"⚠️ [MONGO] get_mongo_db failed after {elapsed:.3f}s: {e} - continuing without MongoDB")
+        # KHÔNG raise - set db = None để app vẫn chạy được
+        # MatchService sẽ handle None mongo_db
+        db = None
+    
+    try:
+        yield db
+    except GeneratorExit:
+        # Generator đang được đóng - không làm gì
+        raise
+    except Exception as e:
+        # Nếu có exception trong quá trình sử dụng, log nhưng không raise
+        logger.error(f"❌ [MONGO] Exception during get_mongo_db usage: {e}", exc_info=True)
+        # KHÔNG raise - để tránh generator error
+        raise
+    finally:
+        # không đóng kết nối để tái sử dụng (Motor handle connection pool)
+        pass

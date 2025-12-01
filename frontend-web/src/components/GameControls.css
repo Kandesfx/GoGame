@@ -1,0 +1,150 @@
+.game-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: rgba(26, 15, 26, 0.85);
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  border-radius: 12px;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 20px rgba(255, 70, 85, 0.1);
+  border: 2px solid rgba(255, 70, 85, 0.4);
+  width: 100%;
+  flex-shrink: 0;
+  flex-grow: 0;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.game-controls::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+}
+
+.controls-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--valorant-red);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  background: rgba(26, 15, 26, 0.9);
+  border: 2px solid var(--color-brown);
+  color: var(--color-text);
+  box-shadow: 
+    0 0 15px rgba(139, 111, 71, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.5);
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.3), transparent);
+  transition: left 0.5s;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: rgba(255, 107, 53, 0.1);
+  box-shadow: 
+    0 0 20px rgba(255, 107, 53, 0.4),
+    0 0 20px rgba(155, 89, 182, 0.3),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+  border-color: var(--color-orange);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.2),
+    inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Buttons in headers should not flex */
+.app-header .btn,
+.main-header .btn,
+.header-actions .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: rgba(139, 111, 71, 0.2);
+  color: var(--color-text);
+  border: 1px solid var(--color-brown);
+  text-shadow: 0 0 10px rgba(139, 111, 71, 0.5);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: rgba(139, 111, 71, 0.3);
+  box-shadow: 
+    0 0 25px rgba(139, 111, 71, 0.5),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.btn-danger {
+  background: rgba(255, 107, 53, 0.2);
+  color: var(--color-text);
+  border: 1px solid var(--color-orange);
+  text-shadow: 0 0 10px rgba(255, 107, 53, 0.5);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: rgba(255, 107, 53, 0.3);
+  box-shadow: 
+    0 0 25px rgba(255, 107, 53, 0.5),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.btn-warning {
+  background: rgba(155, 89, 182, 0.2);
+  color: var(--color-text);
+  border: 1px solid var(--color-purple);
+  text-shadow: 0 0 10px rgba(155, 89, 182, 0.5);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: rgba(155, 89, 182, 0.3);
+  box-shadow: 
+    0 0 25px rgba(155, 89, 182, 0.5),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
