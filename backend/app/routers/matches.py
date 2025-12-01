@@ -135,7 +135,15 @@ def list_history(
 ):
     """Lấy lịch sử matches của user."""
     matches = match_service.list_user_matches(UUID(current_user.id), limit=limit, offset=offset)
-    return [_to_match_response(match, db_session=match_service.db) for match in matches]
+    # Truyền current_user_id để backend có thể tính đúng user_color và user_elo_change
+    return [
+        _to_match_response(
+            match,
+            db_session=match_service.db,
+            current_user_id=str(current_user.id),
+        )
+        for match in matches
+    ]
 
 
 @router.get("/{match_id}", response_model=match_schema.MatchResponse)

@@ -118,17 +118,170 @@ alembic upgrade head
 
 ### 2.6. Build C++ AI Engine (nếu cần)
 
+> **Lưu ý**: Module `gogame_py` cần **pybind11** để build. Nếu không có pybind11, module sẽ không được tạo.
+
+#### Bước 1: Kiểm tra và cài đặt pybind11
+
+**Windows (MSYS2):**
+```bash
+# Mở MSYS2 MinGW 64-bit shell
+pacman -S mingw-w64-x86_64-pybind11
+
+# Kiểm tra đã cài chưa
+pacman -Q mingw-w64-x86_64-pybind11
+```
+
+**Linux:**
+```bash
+# Cài qua pip (khuyến nghị)
+pip install pybind11
+
+# Hoặc qua package manager
+sudo apt install python3-pybind11  # Ubuntu/Debian
+```
+
+**macOS:**
+```bash
+# Cài qua pip
+pip install pybind11
+
+# Hoặc qua Homebrew
+brew install pybind11
+```
+
+#### Bước 2: Build module
+
+**Cách 1: Dùng script tự động (Khuyến nghị)**
+
+```bash
+# Windows (CMD)
+scripts\build_gogame_py_simple.bat
+
+# Linux/Mac/Git Bash
+bash scripts/build_gogame_py_simple.sh
+```
+
+Script sẽ tự động:
+- Kiểm tra CMake và pybind11
+- Build module
+- Kiểm tra file output
+- Hiển thị hướng dẫn sử dụng
+
+**Cách 2: Build thủ công**
+
 ```bash
 # Từ thư mục root
 mkdir -p build
 cd build
-cmake ..
-cmake --build .
 
-# Copy gogame_py.pyd (Windows) hoặc gogame_py.so (Linux) vào backend/
-# Hoặc thêm build/ vào PYTHONPATH
+# Configure CMake
+cmake ..
+
+# Kiểm tra output - phải thấy: "pybind11 found. Building Python bindings."
+# Nếu thấy "pybind11 not found. Skipping Python bindings." → quay lại Bước 1
+
+# Build target gogame_py (quan trọng!)
+cmake --build . --target gogame_py
+
+# Hoặc build tất cả
+cmake --build .
 ```
 
+#### Bước 3: Kiểm tra file đã được tạo
+
+**Windows:**
+```bash
+# File sẽ có tên dạng: gogame_py.cp3XX-*.pyd
+# Ví dụ: gogame_py.cp312-mingw_x86_64_msvcrt_gnu.pyd
+ls build/gogame_py*.pyd
+```
+
+**Linux/macOS:**
+```bash
+# File sẽ có tên dạng: gogame_py.cpython-*.so
+ls build/gogame_py*.so
+```
+
+#### Bước 4: Sử dụng module
+
+**Option A: Thêm build/ vào PYTHONPATH**
+```bash
+# Windows (PowerShell)
+$env:PYTHONPATH = "$PWD\build;$env:PYTHONPATH"
+
+# Linux/Mac
+export PYTHONPATH="$PWD/build:$PYTHONPATH"
+```
+
+**Option B: Copy vào backend/**
+```bash
+# Tìm file module (tên có thể khác tùy Python version)
+# Windows
+copy build\gogame_py*.pyd backend\gogame_py.pyd
+
+# Linux/Mac
+cp build/gogame_py*.so backend/gogame_py.so
+```
+
+**Option C: Dùng script tự động**
+```bash
+# Windows (MSYS2 shell)
+python scripts/install_gogame_py.py
+
+# Linux/Mac
+python3 scripts/install_gogame_py.py
+```
+
+#### Troubleshooting
+
+**Vấn đề 1: Không thấy file `.pyd` hoặc `.so` sau khi build**
+
+**Nguyên nhân:**
+- pybind11 chưa được cài đặt hoặc CMake không tìm thấy
+- Build target không được chỉ định
+
+**Giải pháp:**
+```bash
+# 1. Kiểm tra pybind11
+python -c "import pybind11; print(pybind11.get_cmake_dir())"
+
+# 2. Xem output của cmake .. - phải có "pybind11 found"
+cd build
+cmake ..  # Xem output
+
+# 3. Build lại với target cụ thể
+cmake --build . --target gogame_py --verbose
+
+# 4. Kiểm tra file trong build/
+ls -la build/ | grep gogame_py
+```
+
+**Vấn đề 2: Module không import được**
+
+**Nguyên nhân:**
+- File ở vị trí khác
+- Thiếu DLL dependencies (Windows)
+- Python version không khớp
+
+**Giải pháp:**
+```bash
+# 1. Tìm file module
+find build -name "gogame_py*" -type f
+
+# 2. Kiểm tra Python version khớp với file
+python --version
+# File .pyd có cp312 → cần Python 3.12
+
+# 3. Test import
+cd build
+python -c "import gogame_py; print('OK')"
+```
+
+**Vấn đề 3: Lỗi DLL không tìm thấy (Windows)**
+
+**Giải pháp:**
+- Copy các DLL cần thiết từ MSYS2 vào cùng thư mục với `.pyd`
+- Hoặc dùng script: `scripts/setup_gogame_py_for_backend.sh`
 ### 2.7. Chạy Backend Server
 
 ```bash

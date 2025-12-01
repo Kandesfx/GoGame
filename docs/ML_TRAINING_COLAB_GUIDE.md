@@ -22,15 +22,27 @@ Nếu bạn đã:
 
 **Bước tiếp theo:**
 
-1. **Tạo cấu trúc thư mục** (chạy Cell 2 trong guide)
-2. **Upload Dataset** vào `GoGame_ML/datasets/` (file `.pt`)
-3. **Upload Code Model** vào `GoGame_ML/code/` (hoặc copy trực tiếp)
-4. **Verify Setup** (chạy Cell 6)
-5. **Bắt đầu Training** (theo Cell 5 trong guide)
+1. **Tạo cấu trúc thư mục** (chạy Cell 1 trong template)
+2. **Upload SGF Files** vào `GoGame_ML/raw_sgf/` (hoặc đã có sẵn)
+3. **Upload Code Scripts** vào `GoGame_ML/code/`:
+   - `policy_network.py`
+   - `value_network.py`
+   - `generate_features_colab.py`
+   - `generate_labels_colab.py`
+   - `train_colab.py`
+   - `parse_sgf_colab.py`
+4. **Chạy theo thứ tự các cells** trong template:
+   - Cell 1-2: Setup
+   - Cell 3-6: Load code
+   - Cell 7-8: Parse SGF → Positions
+   - Cell 9: Generate Labels
+   - Cell 10: Verify Dataset
+   - Cell 11-12: Training
+   - Cell 13: Download Model
 
-**Vị trí Dataset:** `/content/drive/MyDrive/GoGame_ML/datasets/positions_9x9.pt`
+**Hoặc sử dụng template:** Copy từng cell từ `scripts/colab_notebook_template.py`
 
-**Vị trí Code:** `/content/drive/MyDrive/GoGame_ML/code/models/`
+**Vị trí Scripts:** `scripts/` trong repository
 
 ### 1.1. Tại sao dùng Colab/Kaggle?
 

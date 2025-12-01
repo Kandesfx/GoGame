@@ -1631,6 +1631,8 @@ class MatchService:
                     "$push": {"moves": move_doc},
                     "$set": {
                         "current_player": next_player_pass,
+                        # Pass reset Ko giống C++ engine (ko_index_ = -1)
+                        "ko_position": None,
                     },
                 },
             )
@@ -1693,6 +1695,12 @@ class MatchService:
             if captured_key in board_position_after:
                 del board_position_after[captured_key]
         
+        # Tính ko_position mới sau nước đi của AI (fallback mode)
+        # Điều này giúp nước đi tiếp theo của người chơi vẫn bị ràng buộc bởi luật Ko
+        new_ko_position = self._calculate_ko_position_fallback(
+            board_position_before, ai_x, ai_y, ai_color, captured_stones, match.board_size
+        )
+
         # Save AI move to MongoDB
         move_number = len(game_doc.get("moves", [])) + 1
         move_doc = {
@@ -1722,6 +1730,8 @@ class MatchService:
                     "board_history": new_board_history,  # Cập nhật board_history
                     "prisoners_black": prisoners_black,
                     "prisoners_white": prisoners_white,
+                    # Lưu ko_position để _check_ko_rule_fallback() cho nước đi sau hoạt động đúng
+                    "ko_position": list(new_ko_position) if new_ko_position else None,
                 },
             },
         )

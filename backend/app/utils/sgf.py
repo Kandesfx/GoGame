@@ -17,6 +17,10 @@ def export_sgf(
     result: Optional[str] = None,
     date: Optional[datetime] = None,
     event: str = "GoGame",
+    handicap: int = 0,
+    handicap_stones_black: Optional[List[tuple]] = None,
+    handicap_stones_white: Optional[List[tuple]] = None,
+    komi: Optional[float] = None,
 ) -> str:
     """Export game moves sang SGF format.
     
@@ -28,6 +32,10 @@ def export_sgf(
         result: Kết quả ván đấu (e.g., "B+R", "W+R", "B+2.5")
         date: Ngày chơi
         event: Tên sự kiện/tournament
+        handicap: Số handicap stones (0 = no handicap)
+        handicap_stones_black: List of (x, y) tuples cho Black handicap stones
+        handicap_stones_white: List of (x, y) tuples cho White handicap stones (rare)
+        komi: Komi value (default: 7.5 for no handicap, 0.5 for handicap)
     
     Returns:
         SGF string
@@ -51,6 +59,37 @@ def export_sgf(
     if result:
         sgf_lines.append(f";RE[{result}]")
     
+    # Handicap info
+    if handicap > 0:
+        sgf_lines.append(f";HA[{handicap}]")
+        
+        # Add handicap stones (Black)
+        if handicap_stones_black:
+            ab_line = ";AB"
+            for x, y in handicap_stones_black:
+                # Convert to SGF coordinates (skip 'i')
+                sgf_x = chr(ord("a") + x + (1 if x >= 8 else 0))
+                sgf_y = chr(ord("a") + y + (1 if y >= 8 else 0))
+                ab_line += f"[{sgf_x}{sgf_y}]"
+            sgf_lines.append(ab_line)
+        
+        # Add handicap stones (White) - rare
+        if handicap_stones_white:
+            aw_line = ";AW"
+            for x, y in handicap_stones_white:
+                sgf_x = chr(ord("a") + x + (1 if x >= 8 else 0))
+                sgf_y = chr(ord("a") + y + (1 if y >= 8 else 0))
+                aw_line += f"[{sgf_x}{sgf_y}]"
+            sgf_lines.append(aw_line)
+    
+    # Komi
+    if komi is not None:
+        sgf_lines.append(f";KM[{komi:.2f}]")
+    elif handicap > 0:
+        sgf_lines.append(";KM[0.50]")  # Default komi for handicap games
+    else:
+        sgf_lines.append(";KM[7.50]")  # Default komi for normal games
+    
     # Moves
     for move in moves:
         color = move.get("color", "")
@@ -58,11 +97,10 @@ def export_sgf(
         
         if position and len(position) == 2:
             x, y = position
-            # SGF uses letters: a-z for 1-26
-            # x, y are 0-indexed in our system, SGF uses 1-indexed (a=0, b=1, ...)
-            # Convert 0-indexed to SGF format (a-z)
-            sgf_x = chr(ord("a") + x) if x < 26 else chr(ord("A") + x - 26)
-            sgf_y = chr(ord("a") + y) if y < 26 else chr(ord("A") + y - 26)
+            # SGF uses letters: a-z for 1-26, but skips 'i'
+            # Convert 0-indexed to SGF format (a-z, skip 'i')
+            sgf_x = chr(ord("a") + x + (1 if x >= 8 else 0))
+            sgf_y = chr(ord("a") + y + (1 if y >= 8 else 0))
             
             if color == "B":
                 sgf_lines.append(f";B[{sgf_x}{sgf_y}]")
@@ -83,6 +121,11 @@ def export_sgf(
 def parse_sgf(sgf_string: str) -> Dict[str, Any]:
     """Parse SGF string thành game data.
     
+    Hỗ trợ:
+    - Handicap stones (;AB[...], ;AW[...])
+    - Handicap number (;HA[n])
+    - Starting player thay đổi khi có handicap
+    
     Args:
         sgf_string: SGF format string
     
@@ -95,6 +138,9 @@ def parse_sgf(sgf_string: str) -> Dict[str, Any]:
             "white_player": str|None,
             "result": str|None,
             "date": datetime|None,
+            "handicap": int,  # Number of handicap stones
+            "handicap_stones_black": List[str],  # SGF coordinates
+            "handicap_stones_white": List[str],  # SGF coordinates (rare)
         }
     """
     import re
@@ -107,6 +153,9 @@ def parse_sgf(sgf_string: str) -> Dict[str, Any]:
         "white_player": None,
         "result": None,
         "date": None,
+        "handicap": 0,
+        "handicap_stones_black": [],
+        "handicap_stones_white": [],
     }
     
     # Extract properties using regex
@@ -143,7 +192,24 @@ def parse_sgf(sgf_string: str) -> Dict[str, Any]:
         except Exception:
             pass
     
+    # Extract handicap number
+    ha_match = re.search(r"HA\[(\d+)\]", sgf_clean)
+    if ha_match:
+        result["handicap"] = int(ha_match.group(1))
+    
+    # Extract handicap stones (Black) - format: ;AB[pd][dp]
+    # Note: SGF allows multiple AB properties or multiple coordinates in one
+    ab_matches = re.findall(r"AB\[([a-z]{2})\]", sgf_clean)
+    if ab_matches:
+        result["handicap_stones_black"] = ab_matches
+    
+    # Extract handicap stones (White) - format: ;AW[pd][dp] (rare)
+    aw_matches = re.findall(r"AW\[([a-z]{2})\]", sgf_clean)
+    if aw_matches:
+        result["handicap_stones_white"] = aw_matches
+    
     # Extract moves: ;B[ab] or ;W[cd] or ;B[] for pass
+    # Skip handicap stones (AB, AW) - they're not moves
     move_pattern = r";([BW])\[([a-z]{0,2})\]"
     moves = re.findall(move_pattern, sgf_clean)
     
@@ -160,17 +226,30 @@ def parse_sgf(sgf_string: str) -> Dict[str, Any]:
         else:
             # Convert SGF coordinates to 0-indexed
             # SGF: a=0, b=1, ..., z=25
+            # Skip 'i' (no I in Go coordinates)
             if len(pos_str) == 2:
                 x = ord(pos_str[0]) - ord("a")
                 y = ord(pos_str[1]) - ord("a")
-                result["moves"].append({
-                    "number": move_number,
-                    "color": color,
-                    "position": [x, y],
-                })
+                
+                # Adjust for missing 'i' in Go coordinates
+                if x >= 8:
+                    x -= 1
+                if y >= 8:
+                    y -= 1
+                
+                # Validate coordinates
+                if 0 <= x < result["board_size"] and 0 <= y < result["board_size"]:
+                    result["moves"].append({
+                        "number": move_number,
+                        "color": color,
+                        "position": [x, y],
+                    })
         
         move_number += 1
     
-    logger.info(f"Parsed SGF: {len(result['moves'])} moves, board size: {result['board_size']}")
+    logger.info(
+        f"Parsed SGF: {len(result['moves'])} moves, board size: {result['board_size']}, "
+        f"handicap: {result['handicap']}"
+    )
     return result
 

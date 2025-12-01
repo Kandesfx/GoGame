@@ -32,7 +32,14 @@ def parse_sgf_coord(sgf_coord, board_size):
 
 
 def parse_sgf_file(sgf_path):
-    """Parse 1 SGF file và extract tất cả positions"""
+    """Parse 1 SGF file và extract tất cả positions
+    
+    Hỗ trợ:
+    - Handicap stones (;AB[...])
+    - White stones đặt sẵn (;AW[...])
+    - Starting player thay đổi khi có handicap
+    - Result parsing với nhiều format
+    """
     try:
         with open(sgf_path, 'rb') as f:
             sgf_data = f.read()
@@ -44,7 +51,7 @@ def parse_sgf_file(sgf_path):
         root = game.get_root()
         board_size = game.get_size()
         
-        # Get result property (RE = Result)
+        # Get result property (RE = Result) - từ ThuanBranch
         result = ''
         winner = None
         try:
@@ -71,10 +78,38 @@ def parse_sgf_file(sgf_path):
             # If RE property doesn't exist or can't be parsed, result stays empty
             pass
         
-        # Extract moves by traversing the main line
-        positions = []
+        # Extract handicap info - từ HEAD (master)
+        try:
+            handicap = int(root.properties.get('HA', ['0'])[0])  # Handicap number
+        except (ValueError, TypeError):
+            handicap = 0
+        
+        handicap_stones_black = root.properties.get('AB', [])  # Black handicap stones
+        handicap_stones_white = root.properties.get('AW', [])  # White handicap stones (rare)
+        
+        # Initialize board
         board = np.zeros((board_size, board_size), dtype=np.int8)
-        current_player = 'B'  # Black starts
+        
+        # Place handicap stones (Black stones đặt sẵn)
+        if handicap_stones_black:
+            for stone_coord in handicap_stones_black:
+                x, y = parse_sgf_coord(stone_coord, board_size)
+                if x is not None and y is not None:
+                    board[y, x] = 1  # Black = 1
+        
+        # Place white handicap stones (nếu có, rất hiếm)
+        if handicap_stones_white:
+            for stone_coord in handicap_stones_white:
+                x, y = parse_sgf_coord(stone_coord, board_size)
+                if x is not None and y is not None:
+                    board[y, x] = 2  # White = 2
+        
+        # Determine starting player
+        # Nếu có handicap, White đi trước (không phải Black)
+        current_player = 'W' if handicap > 0 else 'B'
+        
+        # Extract moves by traversing the main line - từ ThuanBranch
+        positions = []
         
         # Traverse main line (first child of each node)
         node = root
@@ -89,7 +124,7 @@ def parse_sgf_file(sgf_path):
             # Follow main line (first child)
             node = children[0]
             
-            # Get move from this node
+            # Get move from this node - từ ThuanBranch
             move = node.get_move()
             if move:
                 color, move_coord = move
@@ -101,11 +136,12 @@ def parse_sgf_file(sgf_path):
                     positions.append({
                         'board_state': board.copy(),
                         'move': (x, y),
-                        'current_player': 'B' if color == 'b' else 'W',
+                        'current_player': current_player,
                         'move_number': move_number,
                         'board_size': board_size,
                         'game_result': result,
-                        'winner': winner
+                        'winner': winner,
+                        'handicap': handicap  # Lưu thông tin handicap để filter sau
                     })
                     
                     # Apply move (simplified - không xử lý captures, ko, etc.)
@@ -179,4 +215,3 @@ if __name__ == "__main__":
     #     board_sizes=[9, 13, 19]
     # )
     pass
-
