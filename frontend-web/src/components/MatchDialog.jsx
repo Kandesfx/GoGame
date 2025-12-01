@@ -1,19 +1,35 @@
 import { useState, useEffect } from 'react'
-import { FaTimes, FaGamepad, FaRobot, FaUsers } from 'react-icons/fa'
 import StoneColorDialog from './StoneColorDialog'
 import './MatchDialog.css'
 
+/**
+ * Thiết kế mới cho MatchDialog
+ * 
+ * Vẫn giữ nguyên props:
+ *  - onClose()
+ *  - onCreateMatch(matchType, level, boardSize, playerColor?)
+ *
+ * Mapping:
+ *  - PVE (Đấu với máy):  matchType = 'ai'
+ *  - PVP + Mã tham gia:  matchType = 'pvp'
+ *  - PVP + Ghép online:  matchType = 'matchmaking'
+ */
 const MatchDialog = ({ onClose, onCreateMatch }) => {
-  const [matchType, setMatchType] = useState('ai')
-  const [aiLevel, setAiLevel] = useState(1)
-  const [boardSize, setBoardSize] = useState(9)
+  const [expandedMode, setExpandedMode] = useState(null) // 'pvp' | 'pve' | null
+  const [pvpSettings, setPvpSettings] = useState({
+    matchType: null,   // 'code' | 'online'
+    boardSize: null,   // 9 | 13 | 19
+  })
+  const [pveSettings, setPveSettings] = useState({
+    aiLevel: null,     // 1–4
+    boardSize: null,   // 9 | 13 | 19
+  })
   const [showStoneColorDialog, setShowStoneColorDialog] = useState(false)
 
-  // Handle Escape key to close dialog
+  // Esc đóng dialog (hoặc đóng StoneColorDialog nếu đang mở)
   useEffect(() => {
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
-        console.log('🔴 Escape key pressed - closing dialog')
         if (showStoneColorDialog) {
           setShowStoneColorDialog(false)
         } else {
@@ -21,115 +37,285 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
         }
       }
     }
-    
+
     document.addEventListener('keydown', handleEscape)
     return () => {
       document.removeEventListener('keydown', handleEscape)
     }
   }, [onClose, showStoneColorDialog])
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    if (matchType === 'ai') {
-      // Show stone color dialog for AI matches
-      setShowStoneColorDialog(true)
-    } else {
-      console.log('✅ Creating match:', { matchType, aiLevel, boardSize })
-      onCreateMatch(matchType, aiLevel, boardSize)
-    }
-  }
-
-  const handleStoneColorSubmit = (color) => {
-    console.log('✅ Creating AI match with color:', color, { matchType, aiLevel, boardSize })
-    console.log('🎨 Calling onCreateMatch with params:', matchType, aiLevel, boardSize, color)
-    onCreateMatch(matchType, aiLevel, boardSize, color)
-    setShowStoneColorDialog(false)
-  }
-
   const handleOverlayClick = (e) => {
-    // Only close if clicking directly on overlay, not on dialog content
     if (e.target === e.currentTarget) {
-      console.log('🔴 Overlay clicked - closing dialog')
       onClose()
     }
   }
 
+  const handleModeClick = (mode) => {
+    if (expandedMode === mode) {
+      setExpandedMode(null)
+    } else {
+      setExpandedMode(mode)
+      if (mode === 'pvp') {
+        setPveSettings({ aiLevel: null, boardSize: null })
+      } else {
+        setPvpSettings({ matchType: null, boardSize: null })
+      }
+    }
+  }
+
+  const isPvpComplete = pvpSettings.matchType && pvpSettings.boardSize
+  const isPveComplete = pveSettings.aiLevel && pveSettings.boardSize
+
+  const handleCreateClick = () => {
+    if (expandedMode === 'pvp' && isPvpComplete) {
+      const boardSize = pvpSettings.boardSize
+      if (pvpSettings.matchType === 'code') {
+        // Đấu với người (mã tham gia)
+        onCreateMatch('pvp', null, boardSize)
+      } else if (pvpSettings.matchType === 'online') {
+        // Ghép online
+        onCreateMatch('matchmaking', null, boardSize)
+      }
+      onClose()
+    } else if (expandedMode === 'pve' && isPveComplete) {
+      // PVE → mở dialog chọn màu
+      setShowStoneColorDialog(true)
+    }
+  }
+
+  const handleStoneColorSubmit = (color) => {
+    if (!isPveComplete) {
+      setShowStoneColorDialog(false)
+      return
+    }
+    const level = pveSettings.aiLevel
+    const boardSize = pveSettings.boardSize
+    onCreateMatch('ai', level, boardSize, color)
+    setShowStoneColorDialog(false)
+    onClose()
+  }
+
   return (
     <div className="match-dialog-overlay" onClick={handleOverlayClick}>
-      <div className="match-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="match-dialog-header">
-          <div className="match-dialog-title">
-            <FaGamepad className="dialog-icon" />
-            <h2>Tạo Trận Đấu</h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="match-dialog-close"
-            title="Đóng (Esc)"
-          >
-            <FaTimes />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>
-              <FaUsers className="label-icon" />
-              Loại trận đấu:
-            </label>
-            <select
-              value={matchType}
-              onChange={(e) => setMatchType(e.target.value)}
+      <div className="match-dialog match-dialog-new" onClick={(e) => e.stopPropagation()}>
+        <div className="mode-dialog">
+          {/* Header */}
+          <div className="mode-header">
+            <h2>CHỌN CHẾ ĐỘ</h2>
+            <button
+              type="button"
+              className="mode-close"
+              onClick={onClose}
             >
-              <option value="ai">Đấu với AI</option>
-              <option value="pvp">Đấu với người (Mã tham gia)</option>
-              <option value="matchmaking">Ghép người chơi online</option>
-            </select>
+              ×
+            </button>
           </div>
 
-          {matchType === 'ai' && (
-            <div className="form-group">
-              <label>
-                <FaRobot className="label-icon" />
-                Cấp độ AI:
-              </label>
-              <select
-                value={aiLevel}
-                onChange={(e) => setAiLevel(parseInt(e.target.value))}
-                className="level-select"
+          <div className="mode-divider" />
+
+          {/* PVP Card */}
+          <div
+            className={
+              'mode-card ' +
+              (expandedMode === 'pvp' ? 'mode-card-active' : '')
+            }
+          >
+            <button
+              type="button"
+              className="mode-card-header"
+              onClick={() => handleModeClick('pvp')}
+            >
+              <div className="mode-card-left">
+                <div className="mode-icon mode-icon-pvp">
+                  <span>⚔️</span>
+                </div>
+                <div className="mode-text">
+                  <div className="mode-title">Chế độ PVP</div>
+                  <div className="mode-subtitle">Đấu với người chơi</div>
+                </div>
+              </div>
+              {expandedMode === 'pvp' && (
+                <div className="mode-check">
+                  <span>✓</span>
+                </div>
+              )}
+            </button>
+
+            {expandedMode === 'pvp' && (
+              <div className="mode-content fade-in">
+                <div className="mode-section">
+                  <div className="mode-section-label">Loại trận đấu</div>
+                  <div className="mode-button-grid mode-button-grid-2">
+                    <button
+                      type="button"
+                      className={
+                        'mode-pill ' +
+                        (pvpSettings.matchType === 'code'
+                          ? 'mode-pill-active'
+                          : '')
+                      }
+                      onClick={() =>
+                        setPvpSettings({ ...pvpSettings, matchType: 'code' })
+                      }
+                    >
+                      Mã tham gia
+                    </button>
+                    <button
+                      type="button"
+                      className={
+                        'mode-pill ' +
+                        (pvpSettings.matchType === 'online'
+                          ? 'mode-pill-active'
+                          : '')
+                      }
+                      onClick={() =>
+                        setPvpSettings({ ...pvpSettings, matchType: 'online' })
+                      }
+                    >
+                      Ghép online
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mode-section">
+                  <div className="mode-section-label">Kích thước bàn cờ</div>
+                  <div className="mode-button-grid mode-button-grid-3">
+                    {[
+                      { label: '9x9', value: 9 },
+                      { label: '13x13', value: 13 },
+                      { label: '19x19', value: 19 },
+                    ].map((size) => (
+                      <button
+                        key={size.value}
+                        type="button"
+                        className={
+                          'mode-pill ' +
+                          (pvpSettings.boardSize === size.value
+                            ? 'mode-pill-active'
+                            : '')
+                        }
+                        onClick={() =>
+                          setPvpSettings({
+                            ...pvpSettings,
+                            boardSize: size.value,
+                          })
+                        }
+                      >
+                        {size.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* PVE Card */}
+          <div
+            className={
+              'mode-card ' +
+              (expandedMode === 'pve' ? 'mode-card-active' : '')
+            }
+          >
+            <button
+              type="button"
+              className="mode-card-header"
+              onClick={() => handleModeClick('pve')}
+            >
+              <div className="mode-card-left">
+                <div className="mode-icon mode-icon-pve">
+                  <span>🤖</span>
+                </div>
+                <div className="mode-text">
+                  <div className="mode-title">Chế độ PVE</div>
+                  <div className="mode-subtitle">Đấu với máy</div>
+                </div>
+              </div>
+              {expandedMode === 'pve' && (
+                <div className="mode-check">
+                  <span>✓</span>
+                </div>
+              )}
+            </button>
+
+            {expandedMode === 'pve' && (
+              <div className="mode-content fade-in">
+                <div className="mode-section">
+                  <div className="mode-section-label">Cấp độ AI</div>
+                  <div className="mode-button-grid mode-button-grid-2">
+                    {[
+                      { label: 'Dễ', value: 1 },
+                      { label: 'Trung bình', value: 2 },
+                      { label: 'Khó', value: 3 },
+                      { label: 'Siêu khó', value: 4 },
+                    ].map((level) => (
+                      <button
+                        key={level.value}
+                        type="button"
+                        className={
+                          'mode-pill ' +
+                          (pveSettings.aiLevel === level.value
+                            ? 'mode-pill-active'
+                            : '')
+                        }
+                        onClick={() =>
+                          setPveSettings({
+                            ...pveSettings,
+                            aiLevel: level.value,
+                          })
+                        }
+                      >
+                        {level.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mode-section">
+                  <div className="mode-section-label">Kích thước bàn cờ</div>
+                  <div className="mode-button-grid mode-button-grid-3">
+                    {[
+                      { label: '9x9', value: 9 },
+                      { label: '13x13', value: 13 },
+                      { label: '19x19', value: 19 },
+                    ].map((size) => (
+                      <button
+                        key={size.value}
+                        type="button"
+                        className={
+                          'mode-pill ' +
+                          (pveSettings.boardSize === size.value
+                            ? 'mode-pill-active'
+                            : '')
+                        }
+                        onClick={() =>
+                          setPveSettings({
+                            ...pveSettings,
+                            boardSize: size.value,
+                          })
+                        }
+                      >
+                        {size.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {(isPvpComplete || isPveComplete) && (
+            <div className="mode-footer">
+              <button
+                type="button"
+                className="mode-create-button"
+                onClick={handleCreateClick}
               >
-                <option value={1}>Dễ</option>
-                <option value={2}>Trung bình</option>
-                <option value={3}>Khó</option>
-                <option value={4}>Siêu khó</option>
-              </select>
+                TẠO TRẬN ĐẤU
+              </button>
             </div>
           )}
-
-          <div className="form-group">
-            <label>
-              <FaGamepad className="label-icon" />
-              Kích thước bàn cờ:
-            </label>
-            <select
-              value={boardSize}
-              onChange={(e) => setBoardSize(parseInt(e.target.value))}
-            >
-              <option value="9">9x9 (Nhanh)</option>
-              <option value="13">13x13 (Trung bình)</option>
-              <option value="19">19x19 (Chuẩn)</option>
-            </select>
-          </div>
-
-          <div className="dialog-actions">
-            <button type="button" onClick={onClose} className="btn btn-secondary">
-              Hủy
-            </button>
-            <button type="submit" className="btn btn-primary">
-              Tạo
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
 
       {showStoneColorDialog && (
