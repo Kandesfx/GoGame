@@ -14,6 +14,8 @@ import StatisticsPanel from './StatisticsPanel'
 import SettingsDialog from './SettingsDialog'
 import Leaderboard from './Leaderboard'
 import LeaderboardPreview from './LeaderboardPreview'
+import GoTutorial from './GoTutorial'
+import InteractiveTutorial from './InteractiveTutorial'
 import './HomePage.css'
 
 const HomePage = ({ onStartMatch }) => {
@@ -30,6 +32,8 @@ const HomePage = ({ onStartMatch }) => {
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false)
+  const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false)
   const [topPlayers, setTopPlayers] = useState([])
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState(() => {
@@ -59,44 +63,39 @@ const HomePage = ({ onStartMatch }) => {
     }
   }, [])
 
-  // Close info panel when clicking outside
-  useEffect(() => {
-    if (!showInfoPanel) return
-
-    const handleClickOutside = (event) => {
-      const infoPanel = document.querySelector('.info-panel')
-      const infoButton = document.querySelector('.info-icon-btn')
-      if (infoPanel && infoButton && 
-          !infoPanel.contains(event.target) && 
-          !infoButton.contains(event.target)) {
-        setShowInfoPanel(false)
-      }
-    }
-
-    // Use setTimeout to avoid immediate closure when opening
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('click', handleClickOutside, true)
-    }, 200)
-
-    return () => {
-      clearTimeout(timeoutId)
-      document.removeEventListener('click', handleClickOutside, true)
-    }
-  }, [showInfoPanel])
 
   const loadData = async () => {
     try {
       setLoading(true)
       const [matchesRes, statsRes, leaderboardRes] = await Promise.all([
-        api.get('/matches/history?limit=3'),
+        api.get('/matches/history?limit=1'), // Chỉ cần 1 để kiểm tra
         api.get('/statistics/me'),
         api.get('/statistics/leaderboard?limit=5')
       ])
-      setRecentMatches(matchesRes.data || [])
+      
+      const matches = matchesRes.data || []
+      setRecentMatches(matches)
       setStatistics(statsRes.data)
       setTopPlayers(leaderboardRes.data || [])
+      
+      // Kiểm tra xem user có matches nào chưa
+      if (!hasCheckedTutorial && matches.length === 0) {
+        // User chưa có trận đấu nào, hiển thị tutorial
+        setShowInteractiveTutorial(true)
+        setHasCheckedTutorial(true)
+      } else {
+        setHasCheckedTutorial(true)
+      }
+      
+      // Load thêm matches để hiển thị trong recent matches
+      if (matches.length > 0) {
+        const allMatchesRes = await api.get('/matches/history?limit=3')
+        setRecentMatches(allMatchesRes.data || [])
+      }
     } catch (error) {
       console.error('Failed to load home data:', error)
+      // Nếu lỗi, không hiển thị tutorial
+      setHasCheckedTutorial(true)
     } finally {
       setLoading(false)
     }
@@ -202,6 +201,10 @@ const HomePage = ({ onStartMatch }) => {
 
   const handleLogout = () => {
     if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
+      // Reset matchmaking related states before logging out to avoid leaking old match info
+      setShowMatchFoundDialog(false)
+      setFoundMatch(null)
+      setShowMatchmakingDialog(false)
       logout()
     }
   }
@@ -316,46 +319,17 @@ const HomePage = ({ onStartMatch }) => {
         </button>
       </div>
 
-      {/* Info Panel - Render outside corner-panel */}
-      {showInfoPanel && (
-        <div 
-          className="info-panel"
-          onClick={(e) => {
-            e.stopPropagation()
-          }}
-          onMouseDown={(e) => {
-            e.stopPropagation()
-          }}
-        >
-            <div className="info-panel-header">
-              <h3>Về cờ vây</h3>
-              <button 
-                className="info-close-btn"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setShowInfoPanel(false)
-                }}
-              >
-                <FaTimes />
-              </button>
-            </div>
-            <div className="info-panel-content">
-              <div className="info-item">
-                <h4>🎯 Mục tiêu</h4>
-                <p>Vây bắt lãnh thổ và bắt quân đối phương để giành chiến thắng.</p>
-              </div>
-              <div className="info-item">
-                <h4>⚫⚪ Luật chơi</h4>
-                <p>Đen đi trước. Người chơi lần lượt đặt quân tại các giao điểm.</p>
-              </div>
-              <div className="info-item">
-                <h4>🏆 Tính điểm</h4>
-                <p>Điểm = Lãnh thổ + Quân bắt được. Người có điểm cao nhất thắng!</p>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Go Tutorial */}
+      <GoTutorial 
+        isOpen={showInfoPanel}
+        onClose={() => setShowInfoPanel(false)}
+      />
+
+      {/* Interactive Tutorial - Tự động hiển thị cho người mới */}
+      <InteractiveTutorial 
+        isOpen={showInteractiveTutorial}
+        onClose={() => setShowInteractiveTutorial(false)}
+      />
 
       {/* Center - Main Action Button */}
       <div className="center-section">

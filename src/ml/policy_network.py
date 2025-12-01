@@ -69,7 +69,7 @@ def load_policy_model(
     checkpoint_path: str,
     device: Optional[torch.device] = None,
 ) -> PolicyNetwork:
-    state = torch.load(checkpoint_path, map_location=device)
+    state = torch.load(checkpoint_path, map_location=device, weights_only=False)
     config_dict = state.get("config", {})
     model = PolicyNetwork(PolicyConfig(**config_dict))
     model.load_state_dict(state["model_state"])

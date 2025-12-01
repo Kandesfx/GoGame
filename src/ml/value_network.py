@@ -66,7 +66,7 @@ def load_value_model(
     checkpoint_path: str,
     device: Optional[torch.device] = None,
 ) -> ValueNetwork:
-    state = torch.load(checkpoint_path, map_location=device)
+    state = torch.load(checkpoint_path, map_location=device, weights_only=False)
     config_dict = state.get("config", {})
     model = ValueNetwork(ValueConfig(**config_dict))
     model.load_state_dict(state["model_state"])
