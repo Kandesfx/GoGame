@@ -8,7 +8,7 @@ primary_region = 'sin'
 
 [build]
   dockerfile = 'backend/Dockerfile'
-  dockerfile_context = '../'
+  dockerfile_context = '.'
 
 [deploy]
   release_command = 'alembic upgrade head'
