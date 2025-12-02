@@ -9,7 +9,11 @@ primary_region = 'sin'
   dockerfile_context = '.'
 
 [deploy]
-  release_command = 'alembic upgrade head'
+  # Option 1: Dùng migrations (nếu đã có data)
+  # release_command = 'alembic upgrade head'
+  
+  # Option 2: Setup từ SQL script (fresh database, nhanh hơn)
+  release_command = 'python backend/scripts/setup_database_fly.py || alembic upgrade head'
 
 [env]
   DEBUG = 'false'

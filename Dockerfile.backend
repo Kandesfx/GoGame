@@ -56,6 +56,7 @@ COPY backend/__init__.py ./
 COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./
+COPY backend/scripts ./scripts
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
