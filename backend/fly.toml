@@ -7,7 +7,7 @@ app = 'gogame-backend'
 primary_region = 'sin'
 
 [build]
-  dockerfile = 'backend/Dockerfile'
+  dockerfile = 'Dockerfile.backend'
   dockerfile_context = '.'
 
 [deploy]
