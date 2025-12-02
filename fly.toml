@@ -1,0 +1,37 @@
+# fly.toml app configuration file for gogame-backend
+# File này ở root directory để deploy backend
+
+app = 'gogame-backend'
+primary_region = 'sin'
+
+[build]
+  dockerfile = 'Dockerfile.backend'
+  dockerfile_context = '.'
+
+[deploy]
+  release_command = 'alembic upgrade head'
+
+[env]
+  DEBUG = 'false'
+  POSTGRES_DSN = '${DATABASE_URL}'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
+  cpus = 1
+

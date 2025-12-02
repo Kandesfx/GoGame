@@ -6,7 +6,7 @@ cd /d "%~dp0\.."
 
 echo 🚀 Deploying backend to Fly.io...
 echo 📁 Build context: %CD%
-echo 📄 Using: backend/fly.toml
+echo 📄 Using: fly.toml (root)
 
-fly deploy -c backend/fly.toml
+fly deploy
 

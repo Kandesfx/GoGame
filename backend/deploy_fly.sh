@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 echo "🚀 Deploying backend to Fly.io..."
 echo "📁 Build context: $(pwd)"
-echo "📄 Using: backend/fly.toml"
+echo "📄 Using: fly.toml (root)"
 
-fly deploy -c backend/fly.toml
+fly deploy
 
