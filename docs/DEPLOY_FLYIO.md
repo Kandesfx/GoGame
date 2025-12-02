@@ -41,7 +41,25 @@ Mở browser và đăng nhập với GitHub/Email.
 
 ## 🎯 Bước 3: Deploy Backend
 
-### 3.1. Tạo Fly App cho Backend
+### 3.1. Build Context Quan Trọng
+
+**Lưu ý**: Dockerfile backend cần access `../CMakeLists.txt` và `../src` để build C++ module. Khi deploy trên Fly.io, cần đảm bảo build context đúng.
+
+**Option A: Build từ root directory (Khuyến nghị)**
+
+Tạo `backend/fly.toml` với build context:
+
+```toml
+[build]
+  dockerfile = "backend/Dockerfile"
+  dockerfile_context = "../"
+```
+
+**Option B: Copy source vào backend (Đơn giản hơn)**
+
+Hoặc copy C++ source vào backend trước khi build.
+
+### 3.2. Tạo Fly App cho Backend
 
 ```bash
 cd backend
@@ -85,11 +103,39 @@ Hoặc trong code, sử dụng `DATABASE_URL` trực tiếp.
 fly deploy
 ```
 
-### 3.5. Chạy Migrations
+### 3.5. Build C++ Module (gogame_py)
+
+**Quan trọng**: Dockerfile sẽ tự động build C++ module trong quá trình build Docker image. Module `gogame_py.so` sẽ được tạo và copy vào container.
+
+**Kiểm tra module đã build:**
+
+```bash
+# SSH vào container sau khi deploy
+fly ssh console -a gogame-backend
+
+# Trong container
+python -c "import gogame_py; print('✅ gogame_py loaded:', gogame_py.__file__)"
+```
+
+**Nếu build fail hoặc không có module:**
+
+Backend vẫn chạy được nhưng AI features sẽ bị disable. Xem logs:
+
+```bash
+fly logs -a gogame-backend | grep gogame_py
+```
+
+**Fallback**: Nếu không build được C++ module, backend sẽ:
+- Vẫn chạy được (không crash)
+- AI features bị disable
+- PvP matches vẫn hoạt động bình thường
+- Premium features sẽ dùng fallback methods
+
+### 3.6. Chạy Migrations
 
 ```bash
 # SSH vào container
-fly ssh console
+fly ssh console -a gogame-backend
 
 # Trong container
 cd /app
@@ -106,20 +152,32 @@ Hoặc tạo release command trong `fly.toml`:
   release_command = "alembic upgrade head"
 ```
 
-### 3.6. Kiểm Tra Backend
+### 3.7. Kiểm Tra Backend
 
 ```bash
 # Xem logs
-fly logs
+fly logs -a gogame-backend
 
 # Check status
-fly status
+fly status -a gogame-backend
 
 # Open app
-fly open
+fly open -a gogame-backend
 ```
 
 Backend sẽ có URL: `https://gogame-backend.fly.dev`
+
+**Kiểm tra AI module:**
+
+```bash
+# Test endpoint
+curl https://gogame-backend.fly.dev/health
+
+# Check logs để xem gogame_py
+fly logs -a gogame-backend | grep -i "gogame_py"
+```
+
+Nếu thấy: `WARNING: gogame_py module not found` → C++ module chưa build thành công, nhưng backend vẫn chạy được.
 
 ## 🎯 Bước 4: Setup MongoDB Atlas (Khuyến nghị)
 

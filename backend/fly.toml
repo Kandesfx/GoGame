@@ -6,6 +6,8 @@ primary_region = "sin"  # Thay đổi region theo nhu cầu: sin (Singapore), ia
 
 [build]
   dockerfile = "Dockerfile"
+  # Build context là parent directory để access CMakeLists.txt và src/
+  dockerfile_context = "../"
 
 [env]
   POSTGRES_DSN = "${DATABASE_URL}"
