@@ -24,10 +24,11 @@ target_include_directories(gogame_core
 
 target_compile_features(gogame_core PUBLIC cxx_std_20)
 
+# Add -fPIC for static libraries that will be linked into shared libraries
 if (MSVC)
     target_compile_options(gogame_core PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(gogame_core PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(gogame_core PRIVATE -Wall -Wextra -Wpedantic -fPIC)
 endif()
 
 set(MINIMAX_SOURCES
@@ -50,10 +51,11 @@ target_link_libraries(gogame_minimax PUBLIC gogame_core)
 
 target_compile_features(gogame_minimax PUBLIC cxx_std_20)
 
+# Add -fPIC for static libraries that will be linked into shared libraries
 if (MSVC)
     target_compile_options(gogame_minimax PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(gogame_minimax PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(gogame_minimax PRIVATE -Wall -Wextra -Wpedantic -fPIC)
 endif()
 
 set(MCTS_SOURCES
@@ -73,10 +75,11 @@ target_link_libraries(gogame_mcts PUBLIC gogame_core)
 
 target_compile_features(gogame_mcts PUBLIC cxx_std_20)
 
+# Add -fPIC for static libraries that will be linked into shared libraries
 if (MSVC)
     target_compile_options(gogame_mcts PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(gogame_mcts PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(gogame_mcts PRIVATE -Wall -Wextra -Wpedantic -fPIC)
 endif()
 
 set(AI_PLAYER_SOURCES
@@ -100,10 +103,11 @@ target_link_libraries(gogame_ai
 
 target_compile_features(gogame_ai PUBLIC cxx_std_20)
 
+# Add -fPIC for static libraries that will be linked into shared libraries
 if (MSVC)
     target_compile_options(gogame_ai PRIVATE /W4 /permissive-)
 else()
-    target_compile_options(gogame_ai PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(gogame_ai PRIVATE -Wall -Wextra -Wpedantic -fPIC)
 endif()
 
 # Find pybind11 - try multiple methods
