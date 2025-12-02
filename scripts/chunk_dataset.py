@@ -22,8 +22,15 @@ class ChunkDataset(Dataset):
 
         # --- Load metadata nhẹ từ 1 chunk ---
         tmp = torch.load(self.chunk_files[0], map_location='cpu', mmap=True)
-        self.board_size = tmp['board_size']
-        first_len = len(tmp['labeled_data'])
+
+        # detect board size if missing
+        if "board_size" in tmp:
+            self.board_size = tmp["board_size"]
+        else:
+            sample = tmp["labeled_data"][0]
+            self.board_size = sample["features"].shape[-1]
+
+        first_len = len(tmp["labeled_data"])
         print(f"📐 Board size = {self.board_size}, first chunk size = {first_len}")
         del tmp
         gc.collect()
@@ -107,12 +114,12 @@ class ChunkDataset(Dataset):
     def _rotate_policy(self, policy, k, board_size):
         p = policy.view(board_size, board_size)
         p = torch.rot90(p, k, dims=[0, 1])
-        return p.view(-1)
+        return p.reshape(-1)
 
     def _flip_policy(self, policy, board_size):
         p = policy.view(board_size, board_size)
         p = torch.flip(p, dims=[1])
-        return p.view(-1)
+        return p.reshape(-1)
 
     def clear_cache(self):
         if self._cached_chunk_data is not None:

@@ -95,57 +95,51 @@ class GoDataset(Dataset):
 
 
 def train_one_epoch(
-    policy_net: nn.Module,
-    value_net: nn.Module,
-    train_loader: DataLoader,
-    policy_optimizer: optim.Optimizer,
-    value_optimizer: optim.Optimizer,
-    policy_criterion: nn.Module,
-    value_criterion: nn.Module,
-    device: torch.device,
-    epoch: int
-) -> tuple:
-    """Train một epoch"""
+    policy_net, value_net, train_loader,
+    policy_optimizer, value_optimizer,
+    policy_criterion, value_criterion,
+    device, epoch
+):
     policy_net.train()
     value_net.train()
     
     total_policy_loss = 0.0
     total_value_loss = 0.0
     num_batches = 0
-    
-    pbar = tqdm(train_loader, desc=f"Epoch {epoch}")
+
+    from tqdm.auto import tqdm
+    pbar = tqdm(train_loader, desc=f"Epoch {epoch}", ncols=120)
+
     for batch in pbar:
         features = batch['features'].to(device)
         policy_target = batch['policy'].to(device)
         value_target = batch['value'].to(device)
-        
+
         # Policy network
         policy_optimizer.zero_grad()
         policy_logits = policy_net(features)
         policy_loss = policy_criterion(policy_logits, policy_target)
         policy_loss.backward()
         policy_optimizer.step()
-        
+
         # Value network
         value_optimizer.zero_grad()
         value_pred = value_net(features)
         value_loss = value_criterion(value_pred, value_target)
         value_loss.backward()
         value_optimizer.step()
-        
+
         total_policy_loss += policy_loss.item()
         total_value_loss += value_loss.item()
         num_batches += 1
-        
-        # Update progress bar
+
         pbar.set_postfix({
-            'policy_loss': f'{policy_loss.item():.4f}',
-            'value_loss': f'{value_loss.item():.4f}'
+            'p_loss': f'{policy_loss.item():.4f}',
+            'v_loss': f'{value_loss.item():.4f}'
         })
-    
+
     avg_policy_loss = total_policy_loss / num_batches
     avg_value_loss = total_value_loss / num_batches
-    
     return avg_policy_loss, avg_value_loss
 
 

@@ -8,7 +8,6 @@ import MatchDialog from './MatchDialog'
 console.log('🏠 HomePage.jsx loaded - version 3')
 import MatchmakingDialog from './MatchmakingDialog'
 import MatchFoundDialog from './MatchFoundDialog'
-import PvPDialog from './PvPDialog'
 import MatchList from './MatchList'
 import StatisticsPanel from './StatisticsPanel'
 import SettingsDialog from './SettingsDialog'
@@ -27,7 +26,6 @@ const HomePage = ({ onStartMatch }) => {
   const [showMatchmakingDialog, setShowMatchmakingDialog] = useState(false)
   const [showMatchFoundDialog, setShowMatchFoundDialog] = useState(false)
   const [foundMatch, setFoundMatch] = useState(null)
-  const [showPvPDialog, setShowPvPDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [showInfoPanel, setShowInfoPanel] = useState(false)
   const [showHistoryDialog, setShowHistoryDialog] = useState(false)
@@ -111,7 +109,7 @@ const HomePage = ({ onStartMatch }) => {
     }
   }
 
-  const handleCreateMatch = async (matchType, level, boardSize, playerColor = 'black') => {
+  const handleCreateMatch = async (matchType, option, boardSize, playerColor = 'black') => {
     try {
       if (matchType === 'matchmaking') {
         // Open matchmaking dialog
@@ -119,17 +117,41 @@ const HomePage = ({ onStartMatch }) => {
         setShowMatchmakingDialog(true)
         return
       }
-      
+
       if (matchType === 'pvp') {
-        // Open PvP dialog
-        setShowMatchDialog(false)
-        setShowPvPDialog(true)
+        // Tạo trận PVP trực tiếp (mã tham gia) với thời gian đã chọn
+        const timeControlMinutes = option || 10
+        try {
+          const response = await api.post('/matches/pvp', {
+            board_size: boardSize,
+            time_control_minutes: timeControlMinutes,
+          })
+          const { match, join_code } = response.data
+
+          // Log mã bàn để chia sẻ (không hiện popup browser)
+          if (join_code) {
+            console.log(
+              'Mã bàn của bạn (gửi cho đối thủ để họ tham gia):',
+              join_code
+            )
+          }
+
+          setShowMatchDialog(false)
+          if (onStartMatch) {
+            onStartMatch(match)
+          }
+        } catch (error) {
+          alert(
+            'Không thể tạo trận PVP: ' +
+              (error.response?.data?.detail || error.message)
+          )
+        }
         return
       }
 
       // AI match - gửi player_color để backend biết người chơi muốn cầm quân gì
       console.log('🎮 HomePage: Creating AI match with player_color:', playerColor)
-      const response = await api.post('/matches/ai', { level, board_size: boardSize, player_color: playerColor })
+      const response = await api.post('/matches/ai', { level: option, board_size: boardSize, player_color: playerColor })
       const match = response.data
       setShowMatchDialog(false)
       if (onStartMatch) {
@@ -140,21 +162,6 @@ const HomePage = ({ onStartMatch }) => {
     }
   }
   
-  const handlePvPMatchCreated = (match) => {
-    // Match created, automatically enter the game
-    setShowPvPDialog(false)
-    if (onStartMatch) {
-      onStartMatch(match)
-    }
-  }
-  
-  const handlePvPMatchJoined = (match) => {
-    setShowPvPDialog(false)
-    if (onStartMatch) {
-      onStartMatch(match)
-    }
-  }
-
   const handleMatchFound = (match) => {
     console.log('🎮 [HomePage] handleMatchFound called with match:', match)
     setShowMatchmakingDialog(false)
@@ -367,15 +374,6 @@ const HomePage = ({ onStartMatch }) => {
           onCancel={handleMatchFoundCancel}
         />
       )}
-      
-      {showPvPDialog && (
-        <PvPDialog
-          onClose={() => setShowPvPDialog(false)}
-          onMatchCreated={handlePvPMatchCreated}
-          onMatchJoined={handlePvPMatchJoined}
-        />
-      )}
-
       {showSettingsDialog && (
         <SettingsDialog
           isOpen={showSettingsDialog}
