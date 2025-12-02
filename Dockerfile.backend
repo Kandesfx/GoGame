@@ -14,16 +14,19 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pybind11
-RUN pip install --no-cache-dir pybind11
+# Install pybind11 (cả pip và cmake package)
+RUN pip install --no-cache-dir pybind11 && \
+    python3 -c "import pybind11; print('pybind11 installed at:', pybind11.get_cmake_dir())"
 
 # Copy source code (build context là root directory)
 COPY CMakeLists.txt ./
 COPY src ./src
 
 # Build C++ module
+# Set pybind11_DIR để CMake tìm được
 RUN mkdir -p build && cd build && \
-    cmake .. && \
+    PYBIND11_DIR=$(python3 -c "import pybind11; print(pybind11.get_cmake_dir())") && \
+    cmake .. -Dpybind11_DIR="$PYBIND11_DIR" && \
     cmake --build . --target gogame_py
 
 # Stage 2: Python backend

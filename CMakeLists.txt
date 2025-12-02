@@ -106,7 +106,21 @@ else()
     target_compile_options(gogame_ai PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+# Find pybind11 - try multiple methods
 find_package(pybind11 CONFIG QUIET)
+if(NOT pybind11_FOUND)
+    # Try to find pybind11 via Python
+    execute_process(
+        COMMAND python3 -c "import pybind11; print(pybind11.get_cmake_dir())"
+        OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(PYBIND11_CMAKE_DIR)
+        set(pybind11_DIR "${PYBIND11_CMAKE_DIR}")
+        find_package(pybind11 CONFIG QUIET)
+    endif()
+endif()
 
 if (pybind11_FOUND)
     message(STATUS "pybind11 found. Building Python bindings.")
@@ -126,20 +140,27 @@ else()
     message(STATUS "pybind11 not found. Skipping Python bindings.")
 endif()
 
-add_executable(test_board tests/test_board.cpp)
-target_include_directories(test_board PRIVATE "${SRC_ROOT}")
-target_link_libraries(test_board PRIVATE gogame_core)
-add_test(NAME test_board COMMAND test_board)
+# Only build tests if tests directory exists
+if(EXISTS "${PROJECT_SOURCE_DIR}/tests/test_board.cpp")
+    add_executable(test_board tests/test_board.cpp)
+    target_include_directories(test_board PRIVATE "${SRC_ROOT}")
+    target_link_libraries(test_board PRIVATE gogame_core)
+    add_test(NAME test_board COMMAND test_board)
+endif()
 
-add_executable(test_minimax tests/test_minimax.cpp)
-target_include_directories(test_minimax PRIVATE "${SRC_ROOT}")
-target_link_libraries(test_minimax PRIVATE gogame_core gogame_minimax)
-add_test(NAME test_minimax COMMAND test_minimax)
+if(EXISTS "${PROJECT_SOURCE_DIR}/tests/test_minimax.cpp")
+    add_executable(test_minimax tests/test_minimax.cpp)
+    target_include_directories(test_minimax PRIVATE "${SRC_ROOT}")
+    target_link_libraries(test_minimax PRIVATE gogame_core gogame_minimax)
+    add_test(NAME test_minimax COMMAND test_minimax)
+endif()
 
-add_executable(test_mcts tests/test_mcts.cpp)
-target_include_directories(test_mcts PRIVATE "${SRC_ROOT}")
-target_link_libraries(test_mcts PRIVATE gogame_core gogame_mcts)
-add_test(NAME test_mcts COMMAND test_mcts)
+if(EXISTS "${PROJECT_SOURCE_DIR}/tests/test_mcts.cpp")
+    add_executable(test_mcts tests/test_mcts.cpp)
+    target_include_directories(test_mcts PRIVATE "${SRC_ROOT}")
+    target_link_libraries(test_mcts PRIVATE gogame_core gogame_mcts)
+    add_test(NAME test_mcts COMMAND test_mcts)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
