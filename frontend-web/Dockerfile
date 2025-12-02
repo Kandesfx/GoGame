@@ -28,6 +28,9 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# Create a simple health check file
+RUN echo '<!DOCTYPE html><html><head><title>OK</title></head><body>OK</body></html>' > /usr/share/nginx/html/health.html
+
 # Expose port
 EXPOSE 80
 
