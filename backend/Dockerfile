@@ -16,9 +16,9 @@ RUN apt-get update && apt-get install -y \
 # Install pybind11
 RUN pip install --no-cache-dir pybind11
 
-# Copy source code
-COPY ../CMakeLists.txt ./
-COPY ../src ./src
+# Copy source code (build context là root directory)
+COPY CMakeLists.txt ./
+COPY src ./src
 
 # Build C++ module
 RUN mkdir -p build && cd build && \
@@ -37,18 +37,21 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first (for better caching)
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy C++ module from builder stage
 COPY --from=builder /build/build/gogame_py*.so /app/
 # Rename to standard name for easier import
-RUN if [ -f /app/gogame_py*.so ]; then \
-        mv /app/gogame_py*.so /app/gogame_py.so 2>/dev/null || true; \
+RUN if ls /app/gogame_py*.so 1> /dev/null 2>&1; then \
+        mv /app/gogame_py*.so /app/gogame_py.so; \
     fi
 
-# Copy application code
-COPY . .
+# Copy application code (từ backend directory)
+COPY backend/__init__.py ./
+COPY backend/app ./app
+COPY backend/migrations ./migrations
+COPY backend/alembic.ini ./
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

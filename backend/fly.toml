@@ -1,42 +1,38 @@
-# Fly.io configuration cho GoGame Backend
-# Tạo bằng: fly launch (hoặc copy file này và chỉnh sửa)
+# fly.toml app configuration file generated for gogame-backend on 2025-12-02T14:21:59+07:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "gogame-backend"
-primary_region = "sin"  # Thay đổi region theo nhu cầu: sin (Singapore), iad (US East), etc.
+app = 'gogame-backend'
+primary_region = 'sin'
 
 [build]
-  dockerfile = "Dockerfile"
-  # Build context là parent directory để access CMakeLists.txt và src/
-  dockerfile_context = "../"
+  dockerfile = 'Dockerfile'
+  dockerfile_context = '../'
+
+[deploy]
+  release_command = 'alembic upgrade head'
 
 [env]
-  POSTGRES_DSN = "${DATABASE_URL}"
-  DEBUG = "false"
+  DEBUG = 'false'
+  POSTGRES_DSN = '${DATABASE_URL}'
 
-# HTTP service configuration
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
-  # Health check
   [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
-    method = "GET"
-    timeout = "5s"
-    path = "/health"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
 
-# Deploy configuration
-[deploy]
-  release_command = "alembic upgrade head"
-
-# VM configuration
-[vm]
-  cpu_kind = "shared"
+[[vm]]
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 512
-
