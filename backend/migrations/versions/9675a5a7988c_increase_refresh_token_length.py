@@ -20,16 +20,36 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Tăng độ dài cột token trong refresh_tokens từ VARCHAR(255) lên TEXT
-    op.execute("""
-        ALTER TABLE refresh_tokens 
-        ALTER COLUMN token TYPE TEXT;
-    """)
+    # Check if table exists first (for fresh databases)
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    tables = inspector.get_table_names()
+    
+    if 'refresh_tokens' in tables:
+        # Check if column exists and is not already TEXT
+        columns = inspector.get_columns('refresh_tokens')
+        token_column = next((col for col in columns if col['name'] == 'token'), None)
+        
+        if token_column and str(token_column['type']).upper() != 'TEXT':
+            op.execute("""
+                ALTER TABLE refresh_tokens 
+                ALTER COLUMN token TYPE TEXT;
+            """)
 
 
 def downgrade() -> None:
     # Rollback về VARCHAR(255) - có thể mất dữ liệu nếu token > 255 ký tự
-    op.execute("""
-        ALTER TABLE refresh_tokens 
-        ALTER COLUMN token TYPE VARCHAR(255);
-    """)
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    tables = inspector.get_table_names()
+    
+    if 'refresh_tokens' in tables:
+        columns = inspector.get_columns('refresh_tokens')
+        token_column = next((col for col in columns if col['name'] == 'token'), None)
+        
+        if token_column and str(token_column['type']).upper() == 'TEXT':
+            op.execute("""
+                ALTER TABLE refresh_tokens 
+                ALTER COLUMN token TYPE VARCHAR(255);
+            """)
 
