@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:14-alpine
+    container_name: gogame-postgres
+    environment:
+      POSTGRES_DB: gogame
+      POSTGRES_USER: gogame_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_in_production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gogame_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gogame-network
+
+  # MongoDB Database
+  mongodb:
+    image: mongo:6
+    container_name: gogame-mongodb
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gogame-network
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gogame-backend
+    environment:
+      POSTGRES_DSN: postgresql+psycopg://gogame_user:${POSTGRES_PASSWORD:-change_me_in_production}@postgres:5432/gogame
+      MONGO_DSN: mongodb://mongodb:27017
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change_me_in_production}
+      JWT_REFRESH_SECRET_KEY: ${JWT_REFRESH_SECRET_KEY:-change_me_in_production}
+      DEBUG: ${DEBUG:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    networks:
+      - gogame-network
+
+  # Frontend Web
+  frontend:
+    build:
+      context: ./frontend-web
+      dockerfile: Dockerfile
+    container_name: gogame-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - gogame-network
+
+volumes:
+  postgres_data:
+    driver: local
+  mongo_data:
+    driver: local
+
+networks:
+  gogame-network:
+    driver: bridge
+
