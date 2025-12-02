@@ -184,3 +184,8 @@ dmypy.json
 # *.mp4
 # *.mov
 
+# PyTorch model files (too large for Git)
+*.pt
+data/processed/*.pt
+data/processed/**/*.pt
+
