@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import AnyHttpUrl, EmailStr, Field
+from pydantic import AnyHttpUrl, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     postgres_dsn: str = "postgresql+psycopg://postgres:postgres@localhost:5432/gogame"
     mongo_dsn: str = "mongodb://localhost:27017"
     mongo_database: str = "gogame"
+    
+    @field_validator('postgres_dsn', mode='before')
+    @classmethod
+    def convert_postgres_dsn(cls, v: str) -> str:
+        """Convert postgresql:// to postgresql+psycopg:// if needed."""
+        if isinstance(v, str) and v.startswith("postgresql://") and not v.startswith("postgresql+psycopg://"):
+            return v.replace("postgresql://", "postgresql+psycopg://", 1)
+        return v
 
     # JWT
     jwt_secret_key: str = "change-me"
