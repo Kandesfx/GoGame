@@ -481,6 +481,16 @@ fly deploy --build-only
 - [ ] Custom domain đã setup (nếu có)
 - [ ] SSL certificates đã có
 - [ ] Health checks đang hoạt động
+- [ ] C++ module (gogame_py) đã build và test (nếu cần AI features)
+
+---
+
+## 📚 Tài Liệu Tham Khảo
+
+- [FastAPI Deployment](https://fastapi.tiangolo.com/deployment/)
+- [Vite Production Build](https://vitejs.dev/guide/build.html)
+- [Fly.io Documentation](https://fly.io/docs/)
+- [C++ Module Deployment Guide](CPP_MODULE_DEPLOYMENT.md) - Chi tiết về build và deploy gogame_py
 
 ---
 
