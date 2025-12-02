@@ -1,0 +1,40 @@
+# Fly.io configuration cho GoGame Backend
+# Tạo bằng: fly launch (hoặc copy file này và chỉnh sửa)
+
+app = "gogame-backend"
+primary_region = "sin"  # Thay đổi region theo nhu cầu: sin (Singapore), iad (US East), etc.
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  POSTGRES_DSN = "${DATABASE_URL}"
+  DEBUG = "false"
+
+# HTTP service configuration
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  # Health check
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+# Deploy configuration
+[deploy]
+  release_command = "alembic upgrade head"
+
+# VM configuration
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
