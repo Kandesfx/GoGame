@@ -19,11 +19,59 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('matches', sa.Column('black_elo_change', sa.Integer(), nullable=True))
-    op.add_column('matches', sa.Column('white_elo_change', sa.Integer(), nullable=True))
+    # Add ELO change columns to matches table (chỉ nếu table tồn tại)
+    op.execute("""
+        DO $$ 
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
+            ) THEN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'black_elo_change'
+                ) THEN
+                    ALTER TABLE matches ADD COLUMN black_elo_change INTEGER;
+                END IF;
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'white_elo_change'
+                ) THEN
+                    ALTER TABLE matches ADD COLUMN white_elo_change INTEGER;
+                END IF;
+            END IF;
+        END $$;
+    """)
 
 
 def downgrade() -> None:
-    op.drop_column('matches', 'white_elo_change')
-    op.drop_column('matches', 'black_elo_change')
+    # Remove ELO change columns from matches table (chỉ nếu table tồn tại)
+    op.execute("""
+        DO $$ 
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
+            ) THEN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'white_elo_change'
+                ) THEN
+                    ALTER TABLE matches DROP COLUMN white_elo_change;
+                END IF;
+                
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'black_elo_change'
+                ) THEN
+                    ALTER TABLE matches DROP COLUMN black_elo_change;
+                END IF;
+            END IF;
+        END $$;
+    """)
 

@@ -17,13 +17,59 @@ depends_on = None
 
 
 def upgrade():
-    # Add black_ready and white_ready columns to matches table
-    op.add_column('matches', sa.Column('black_ready', sa.Boolean(), nullable=False, server_default='false'))
-    op.add_column('matches', sa.Column('white_ready', sa.Boolean(), nullable=False, server_default='false'))
+    # Add black_ready and white_ready columns to matches table (chỉ nếu table tồn tại)
+    op.execute("""
+        DO $$ 
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
+            ) THEN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'black_ready'
+                ) THEN
+                    ALTER TABLE matches ADD COLUMN black_ready BOOLEAN NOT NULL DEFAULT false;
+                END IF;
+                
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'white_ready'
+                ) THEN
+                    ALTER TABLE matches ADD COLUMN white_ready BOOLEAN NOT NULL DEFAULT false;
+                END IF;
+            END IF;
+        END $$;
+    """)
 
 
 def downgrade():
-    # Remove black_ready and white_ready columns
-    op.drop_column('matches', 'white_ready')
-    op.drop_column('matches', 'black_ready')
+    # Remove black_ready and white_ready columns (chỉ nếu table tồn tại)
+    op.execute("""
+        DO $$ 
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
+            ) THEN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'white_ready'
+                ) THEN
+                    ALTER TABLE matches DROP COLUMN white_ready;
+                END IF;
+                
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'black_ready'
+                ) THEN
+                    ALTER TABLE matches DROP COLUMN black_ready;
+                END IF;
+            END IF;
+        END $$;
+    """)
 
