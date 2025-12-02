@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'add_premium_subscription'
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = 'add_ready_status'  # Point to latest migration
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
