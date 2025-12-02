@@ -19,15 +19,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Thêm cột room_code vào bảng matches
+    # Thêm cột room_code vào bảng matches (chỉ nếu table tồn tại)
     op.execute("""
         DO $$ 
         BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'matches' AND column_name = 'room_code'
+            -- Check if table exists first
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
             ) THEN
-                ALTER TABLE matches ADD COLUMN room_code VARCHAR(6);
+                -- Check if column doesn't exist
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'room_code'
+                ) THEN
+                    ALTER TABLE matches ADD COLUMN room_code VARCHAR(6);
+                END IF;
             END IF;
         END $$;
     """)
@@ -36,40 +44,60 @@ def upgrade() -> None:
     op.execute("""
         DO $$ 
         BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM pg_indexes 
-                WHERE tablename = 'matches' AND indexname = 'idx_matches_room_code'
+            -- Check if table exists first
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
             ) THEN
-                CREATE INDEX idx_matches_room_code ON matches(room_code) 
-                WHERE room_code IS NOT NULL;
+                -- Check if index doesn't exist
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_indexes 
+                    WHERE schemaname = 'public'
+                    AND tablename = 'matches' AND indexname = 'idx_matches_room_code'
+                ) THEN
+                    CREATE INDEX idx_matches_room_code ON matches(room_code) 
+                    WHERE room_code IS NOT NULL;
+                END IF;
             END IF;
         END $$;
     """)
 
 
 def downgrade() -> None:
-    # Xóa index
+    # Xóa index (chỉ nếu table tồn tại)
     op.execute("""
         DO $$ 
         BEGIN
             IF EXISTS (
-                SELECT 1 FROM pg_indexes 
-                WHERE tablename = 'matches' AND indexname = 'idx_matches_room_code'
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
             ) THEN
-                DROP INDEX idx_matches_room_code;
+                IF EXISTS (
+                    SELECT 1 FROM pg_indexes 
+                    WHERE schemaname = 'public'
+                    AND tablename = 'matches' AND indexname = 'idx_matches_room_code'
+                ) THEN
+                    DROP INDEX idx_matches_room_code;
+                END IF;
             END IF;
         END $$;
     """)
     
-    # Xóa cột room_code
+    # Xóa cột room_code (chỉ nếu table tồn tại)
     op.execute("""
         DO $$ 
         BEGIN
             IF EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name = 'matches' AND column_name = 'room_code'
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_schema = 'public' AND table_name = 'matches'
             ) THEN
-                ALTER TABLE matches DROP COLUMN room_code;
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public'
+                    AND table_name = 'matches' AND column_name = 'room_code'
+                ) THEN
+                    ALTER TABLE matches DROP COLUMN room_code;
+                END IF;
             END IF;
         END $$;
     """)
