@@ -30,7 +30,7 @@ Dự án GoGame bao gồm:
 **Backend:**
 - **Railway**: Dễ dùng, $5/tháng
 - **Render**: Free tier available
-- **Fly.io**: Free tier
+- **Fly.io**: Free tier (xem [DEPLOY_FLYIO.md](DEPLOY_FLYIO.md) để biết chi tiết)
 - **Heroku**: $7/tháng (không còn free tier)
 
 **Frontend:**

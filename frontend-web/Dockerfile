@@ -19,6 +19,15 @@ ENV VITE_API_URL=$VITE_API_URL
 # Build application
 RUN npm run build
 
+# Verify build output
+RUN echo "=== Build Verification ===" && \
+    ls -la /app/dist && \
+    echo "=== Assets ===" && \
+    ls -la /app/dist/assets 2>/dev/null || echo "No assets folder" && \
+    echo "=== index.html ===" && \
+    test -f /app/dist/index.html && echo "✅ index.html exists" || (echo "❌ index.html missing" && exit 1) && \
+    cat /app/dist/index.html | head -5
+
 # Production stage
 FROM nginx:alpine
 
