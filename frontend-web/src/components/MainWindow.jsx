@@ -60,6 +60,8 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const [showKoDialog, setShowKoDialog] = useState(false) // Dialog thông báo tình trạng cướp cờ KO
   const [koPosition, setKoPosition] = useState(null) // Vị trí KO hiện tại
   const [previousKoPosition, setPreviousKoPosition] = useState(null) // Vị trí KO trước đó để detect thay đổi
+  const [showOpponentPassDialog, setShowOpponentPassDialog] = useState(false) // Dialog thông báo đối phương bỏ lượt
+  const [opponentPassMessage, setOpponentPassMessage] = useState('') // Nội dung thông báo bỏ lượt
 
   // Debug: Log dialog state changes
   useEffect(() => {
@@ -68,6 +70,22 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       console.warn('⚠️ MatchDialog is OPEN - if stuck, press Esc or click outside')
     }
   }, [showMatchDialog])
+
+  // Hiển thị dialog khi đối phương (AI hoặc người chơi khác) bỏ lượt
+  useEffect(() => {
+    if (!currentMatch || !playerColor || moveHistory.length === 0) return
+
+    const lastMove = moveHistory[moveHistory.length - 1]
+    if (!lastMove) return
+
+    // Chỉ quan tâm đến pass (position null) và không phải nước đi của mình
+    if (lastMove.position === null && lastMove.color && lastMove.color !== playerColor) {
+      const isAiOpponent = !!currentMatch.ai_level
+      const opponentName = isAiOpponent ? 'AI' : 'Đối thủ'
+      setOpponentPassMessage(`${opponentName} đã bỏ lượt`)
+      setShowOpponentPassDialog(true)
+    }
+  }, [moveHistory, currentMatch, playerColor])
 
   // Load initial data only once on mount
   useEffect(() => {
@@ -1960,6 +1978,33 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
           onClose={() => setShowKoDialog(false)}
           koPosition={koPosition}
         />
+      )}
+
+      {/* Opponent Pass Dialog */}
+      {showOpponentPassDialog && (
+        <div 
+          className="pass-dialog-overlay" 
+          onClick={() => setShowOpponentPassDialog(false)}
+        >
+          <div 
+            className="pass-dialog" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="pass-dialog-header">
+              <h3>Thông báo</h3>
+              <button 
+                className="pass-dialog-close"
+                onClick={() => setShowOpponentPassDialog(false)}
+                title="Đóng"
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div className="pass-dialog-body">
+              <p>{opponentPassMessage || 'Đối thủ đã bỏ lượt.'}</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Game Over Modal */}

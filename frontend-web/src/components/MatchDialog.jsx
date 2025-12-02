@@ -17,8 +17,9 @@ import './MatchDialog.css'
 const MatchDialog = ({ onClose, onCreateMatch }) => {
   const [expandedMode, setExpandedMode] = useState(null) // 'pvp' | 'pve' | null
   const [pvpSettings, setPvpSettings] = useState({
-    matchType: null,   // 'code' | 'online'
-    boardSize: null,   // 9 | 13 | 19
+    matchType: null,        // 'code' | 'online'
+    boardSize: null,        // 9 | 13 | 19
+    timeControlMinutes: 10, // 5 | 10 | 15 | 20 | 25 | 30
   })
   const [pveSettings, setPveSettings] = useState({
     aiLevel: null,     // 1–4
@@ -63,17 +64,21 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
     }
   }
 
-  const isPvpComplete = pvpSettings.matchType && pvpSettings.boardSize
+  const isPvpComplete =
+    pvpSettings.matchType &&
+    pvpSettings.boardSize &&
+    pvpSettings.timeControlMinutes
   const isPveComplete = pveSettings.aiLevel && pveSettings.boardSize
 
   const handleCreateClick = () => {
     if (expandedMode === 'pvp' && isPvpComplete) {
       const boardSize = pvpSettings.boardSize
+      const timeControlMinutes = pvpSettings.timeControlMinutes
       if (pvpSettings.matchType === 'code') {
-        // Đấu với người (mã tham gia)
-        onCreateMatch('pvp', null, boardSize)
+        // Đấu với người (mã tham gia) – dùng thời gian đã chọn
+        onCreateMatch('pvp', timeControlMinutes, boardSize)
       } else if (pvpSettings.matchType === 'online') {
-        // Ghép online
+        // Ghép online (tạm thời chưa dùng thời gian)
         onCreateMatch('matchmaking', null, boardSize)
       }
       onClose()
@@ -202,6 +207,34 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                         }
                       >
                         {size.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mode-section">
+                  <div className="mode-section-label">
+                    Thời gian cho mỗi người chơi (phút)
+                  </div>
+                  <div className="mode-button-grid mode-button-grid-3">
+                    {[5, 10, 15, 20, 25, 30].map((minutes) => (
+                      <button
+                        key={minutes}
+                        type="button"
+                        className={
+                          'mode-pill ' +
+                          (pvpSettings.timeControlMinutes === minutes
+                            ? 'mode-pill-active'
+                            : '')
+                        }
+                        onClick={() =>
+                          setPvpSettings({
+                            ...pvpSettings,
+                            timeControlMinutes: minutes,
+                          })
+                        }
+                      >
+                        {minutes}'
                       </button>
                     ))}
                   </div>
