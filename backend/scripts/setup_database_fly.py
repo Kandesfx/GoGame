@@ -22,7 +22,12 @@ def setup_database():
     engine = create_engine(settings.postgres_dsn, echo=False)
     
     # Đọc SQL script
+    # Script nằm trong /app/scripts/, SQL file cũng ở đó
     sql_file = Path(__file__).parent / "database_schema.sql"
+    
+    # Fallback: nếu không tìm thấy, thử path khác
+    if not sql_file.exists():
+        sql_file = Path("/app/scripts/database_schema.sql")
     
     if not sql_file.exists():
         print(f"❌ SQL file not found: {sql_file}")

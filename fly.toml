@@ -13,7 +13,7 @@ primary_region = 'sin'
   # release_command = 'alembic upgrade head'
   
   # Option 2: Setup từ SQL script (fresh database, nhanh hơn)
-  release_command = 'python backend/scripts/setup_database_fly.py || alembic upgrade head'
+  release_command = 'python scripts/setup_database_fly.py || alembic upgrade head'
 
 [env]
   DEBUG = 'false'
