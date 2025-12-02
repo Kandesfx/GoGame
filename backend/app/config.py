@@ -18,7 +18,11 @@ class Settings(BaseSettings):
     cors_origins: List[AnyHttpUrl] = Field(default_factory=list)
 
     # Database
-    postgres_dsn: str = "postgresql+psycopg://postgres:postgres@localhost:5432/gogame"
+    # Read from DATABASE_URL (Fly.io standard) or POSTGRES_DSN
+    postgres_dsn: str = Field(
+        default="postgresql+psycopg://postgres:postgres@localhost:5432/gogame",
+        validation_alias="DATABASE_URL"  # Read from DATABASE_URL first
+    )
     mongo_dsn: str = "mongodb://localhost:27017"
     mongo_database: str = "gogame"
     
@@ -29,6 +33,15 @@ class Settings(BaseSettings):
         if isinstance(v, str) and v.startswith("postgresql://") and not v.startswith("postgresql+psycopg://"):
             return v.replace("postgresql://", "postgresql+psycopg://", 1)
         return v
+    
+    def model_post_init(self, __context) -> None:
+        """Fallback to POSTGRES_DSN if DATABASE_URL not set."""
+        import os
+        # If still default value, try POSTGRES_DSN
+        if self.postgres_dsn == "postgresql+psycopg://postgres:postgres@localhost:5432/gogame":
+            postgres_dsn = os.getenv("POSTGRES_DSN")
+            if postgres_dsn:
+                self.postgres_dsn = postgres_dsn
 
     # JWT
     jwt_secret_key: str = "change-me"

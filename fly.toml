@@ -13,7 +13,8 @@ primary_region = 'sin'
 
 [env]
   DEBUG = 'false'
-  POSTGRES_DSN = '${DATABASE_URL}'
+  # DATABASE_URL is automatically set by Fly.io when PostgreSQL is attached
+  # Code will read directly from DATABASE_URL environment variable
 
 [http_service]
   internal_port = 8000
