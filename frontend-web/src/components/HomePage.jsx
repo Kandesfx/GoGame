@@ -1,227 +1,274 @@
-import { useState, useEffect } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { FaCog, FaSignOutAlt, FaGamepad, FaUser, FaHistory, FaInfoCircle, FaTimes, FaTrophy } from 'react-icons/fa'
-import api from '../services/api'
-import MatchDialog from './MatchDialog'
+import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  FaCog,
+  FaSignOutAlt,
+  FaGamepad,
+  FaUser,
+  FaHistory,
+  FaInfoCircle,
+  FaTimes,
+} from "react-icons/fa";
+import api from "../services/api";
+import MatchDialog from "./MatchDialog";
 
 // Force reload v3
-console.log('🏠 HomePage.jsx loaded - version 3')
-import MatchmakingDialog from './MatchmakingDialog'
-import MatchFoundDialog from './MatchFoundDialog'
-import MatchList from './MatchList'
-import StatisticsPanel from './StatisticsPanel'
-import SettingsDialog from './SettingsDialog'
-import Leaderboard from './Leaderboard'
-import LeaderboardPreview from './LeaderboardPreview'
-import GoTutorial from './GoTutorial'
-import InteractiveTutorial from './InteractiveTutorial'
-import './HomePage.css'
+console.log("🏠 HomePage.jsx loaded - version 3");
+import MatchmakingDialog from "./MatchmakingDialog";
+import MatchFoundDialog from "./MatchFoundDialog";
+import MatchList from "./MatchList";
+import StatisticsPanel from "./StatisticsPanel";
+import SettingsDialog from "./SettingsDialog";
+import Leaderboard from "./Leaderboard";
+import LeaderboardPreview from "./LeaderboardPreview";
+import GoTutorial from "./GoTutorial";
+import InteractiveTutorial from "./InteractiveTutorial";
+import "./HomePage.css";
 
 const HomePage = ({ onStartMatch }) => {
-  const { user, logout } = useAuth()
-  const [statistics, setStatistics] = useState(null)
-  const [recentMatches, setRecentMatches] = useState([])
-  const [allMatches, setAllMatches] = useState([])
-  const [showMatchDialog, setShowMatchDialog] = useState(false)
-  const [showMatchmakingDialog, setShowMatchmakingDialog] = useState(false)
-  const [showMatchFoundDialog, setShowMatchFoundDialog] = useState(false)
-  const [foundMatch, setFoundMatch] = useState(null)
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
-  const [showInfoPanel, setShowInfoPanel] = useState(false)
-  const [showHistoryDialog, setShowHistoryDialog] = useState(false)
-  const [showLeaderboard, setShowLeaderboard] = useState(false)
-  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false)
-  const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false)
-  const [topPlayers, setTopPlayers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const { user, logout } = useAuth();
+  const [statistics, setStatistics] = useState(null);
+  const [recentMatches, setRecentMatches] = useState([]);
+  const [allMatches, setAllMatches] = useState([]);
+  const [showMatchDialog, setShowMatchDialog] = useState(false);
+  const [showMatchmakingDialog, setShowMatchmakingDialog] = useState(false);
+  const [matchmakingBoardSize, setMatchmakingBoardSize] = useState(19);
+  const [showMatchFoundDialog, setShowMatchFoundDialog] = useState(false);
+  const [foundMatch, setFoundMatch] = useState(null);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showInfoPanel, setShowInfoPanel] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [showInteractiveTutorial, setShowInteractiveTutorial] = useState(false);
+  const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false);
+  const [topPlayers, setTopPlayers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('goGameSettings')
-    return saved ? JSON.parse(saved) : {
-      soundEnabled: true,
-      showCoordinates: true,
-      showLastMove: true,
-      boardTheme: 'classic',
-      animationSpeed: 'normal'
-    }
-  })
+    const saved = localStorage.getItem("goGameSettings");
+    return saved
+      ? JSON.parse(saved)
+      : {
+          soundEnabled: true,
+          showCoordinates: true,
+          showLastMove: true,
+          boardTheme: "classic",
+          animationSpeed: "normal",
+        };
+  });
 
   useEffect(() => {
-    let isMounted = true
-    
+    let isMounted = true;
+
     const fetchData = async () => {
       if (isMounted) {
-        await loadData()
+        await loadData();
       }
-    }
-    
-    fetchData()
-    
-    return () => {
-      isMounted = false
-    }
-  }, [])
+    };
 
+    fetchData();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadData = async () => {
     try {
-      setLoading(true)
+      setLoading(true);
       const [matchesRes, statsRes, leaderboardRes] = await Promise.all([
-        api.get('/matches/history?limit=1'), // Chỉ cần 1 để kiểm tra
-        api.get('/statistics/me'),
-        api.get('/statistics/leaderboard?limit=5')
-      ])
-      
-      const matches = matchesRes.data || []
-      setRecentMatches(matches)
-      setStatistics(statsRes.data)
-      setTopPlayers(leaderboardRes.data || [])
-      
+        api.get("/matches/history?limit=1"), // Chỉ cần 1 để kiểm tra
+        api.get("/statistics/me"),
+        api.get("/statistics/leaderboard?limit=5"),
+      ]);
+
+      const matches = matchesRes.data || [];
+      setRecentMatches(matches);
+      setStatistics(statsRes.data);
+      setTopPlayers(leaderboardRes.data || []);
+
+      // Xác định key lưu trạng thái đã hoàn thành tutorial theo từng user
+      const userIdFromStats = statsRes.data?.user_id;
+      const userIdFromAuth = user?.id || user?.user_id;
+      const tutorialUserId = userIdFromStats || userIdFromAuth || "guest";
+      const tutorialKey = `interactiveTutorialCompleted_${tutorialUserId}`;
+      const hasCompletedTutorial =
+        typeof window !== "undefined" &&
+        window.localStorage &&
+        window.localStorage.getItem(tutorialKey) === "true";
+
       // Kiểm tra xem user có matches nào chưa
-      if (!hasCheckedTutorial && matches.length === 0) {
-        // User chưa có trận đấu nào, hiển thị tutorial
-        setShowInteractiveTutorial(true)
-        setHasCheckedTutorial(true)
-      } else {
-        setHasCheckedTutorial(true)
+      // Chỉ hiện tutorial nếu:
+      // - Chưa có trận đấu nào
+      // - Và chưa hoàn thành hết các bài hướng dẫn tương tác
+      if (
+        !hasCheckedTutorial &&
+        matches.length === 0 &&
+        !hasCompletedTutorial
+      ) {
+        setShowInteractiveTutorial(true);
       }
-      
+      setHasCheckedTutorial(true);
+
       // Load thêm matches để hiển thị trong recent matches
       if (matches.length > 0) {
-        const allMatchesRes = await api.get('/matches/history?limit=3')
-        setRecentMatches(allMatchesRes.data || [])
+        const allMatchesRes = await api.get("/matches/history?limit=3");
+        setRecentMatches(allMatchesRes.data || []);
       }
     } catch (error) {
-      console.error('Failed to load home data:', error)
+      console.error("Failed to load home data:", error);
       // Nếu lỗi, không hiển thị tutorial
-      setHasCheckedTutorial(true)
+      setHasCheckedTutorial(true);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const loadAllMatches = async () => {
     try {
-      const response = await api.get('/matches/history')
-      setAllMatches(response.data || [])
+      const response = await api.get("/matches/history");
+      setAllMatches(response.data || []);
     } catch (error) {
-      console.error('Failed to load all matches:', error)
-      setAllMatches([])
+      console.error("Failed to load all matches:", error);
+      setAllMatches([]);
     }
-  }
+  };
 
-  const handleCreateMatch = async (matchType, option, boardSize, playerColor = 'black') => {
+  const handleCreateMatch = async (
+    matchType,
+    option,
+    boardSize,
+    playerColor = "black"
+  ) => {
     try {
-      if (matchType === 'matchmaking') {
-        // Open matchmaking dialog
-        setShowMatchDialog(false)
-        setShowMatchmakingDialog(true)
-        return
+      if (matchType === "matchmaking") {
+        // Open matchmaking dialog và tự join queue với board size đã chọn
+        if (boardSize) {
+          setMatchmakingBoardSize(boardSize);
+        }
+        setShowMatchDialog(false);
+        setShowMatchmakingDialog(true);
+        return;
       }
 
-      if (matchType === 'pvp') {
+      if (matchType === "pvp") {
         // Tạo trận PVP trực tiếp (mã tham gia) với thời gian đã chọn
-        const timeControlMinutes = option || 10
+        const timeControlMinutes = option || 10;
         try {
-          const response = await api.post('/matches/pvp', {
+          const response = await api.post("/matches/pvp", {
             board_size: boardSize,
             time_control_minutes: timeControlMinutes,
-          })
-          const { match, join_code } = response.data
+          });
+          const { match, join_code } = response.data;
 
           // Log mã bàn để chia sẻ (không hiện popup browser)
           if (join_code) {
             console.log(
-              'Mã bàn của bạn (gửi cho đối thủ để họ tham gia):',
+              "Mã bàn của bạn (gửi cho đối thủ để họ tham gia):",
               join_code
-            )
+            );
           }
 
-          setShowMatchDialog(false)
+          setShowMatchDialog(false);
           if (onStartMatch) {
-            onStartMatch(match)
+            onStartMatch(match);
           }
         } catch (error) {
           alert(
-            'Không thể tạo trận PVP: ' +
+            "Không thể tạo trận PVP: " +
               (error.response?.data?.detail || error.message)
-          )
+          );
         }
-        return
+        return;
       }
 
       // AI match - gửi player_color để backend biết người chơi muốn cầm quân gì
-      console.log('🎮 HomePage: Creating AI match with player_color:', playerColor)
-      const response = await api.post('/matches/ai', { level: option, board_size: boardSize, player_color: playerColor })
-      const match = response.data
-      setShowMatchDialog(false)
+      console.log(
+        "🎮 HomePage: Creating AI match with player_color:",
+        playerColor
+      );
+      const response = await api.post("/matches/ai", {
+        level: option,
+        board_size: boardSize,
+        player_color: playerColor,
+      });
+      const match = response.data;
+      setShowMatchDialog(false);
       if (onStartMatch) {
-        onStartMatch(match)
+        onStartMatch(match);
       }
     } catch (error) {
-      alert('Không thể tạo trận đấu: ' + (error.response?.data?.detail || error.message))
+      alert(
+        "Không thể tạo trận đấu: " +
+          (error.response?.data?.detail || error.message)
+      );
     }
-  }
-  
+  };
+
   const handleMatchFound = (match) => {
-    console.log('🎮 [HomePage] handleMatchFound called with match:', match)
-    setShowMatchmakingDialog(false)
+    console.log("🎮 [HomePage] handleMatchFound called with match:", match);
+    setShowMatchmakingDialog(false);
     if (match && match.id) {
-      setFoundMatch(match)
-      setShowMatchFoundDialog(true)
-      console.log('✅ [HomePage] MatchFoundDialog should be displayed now')
+      setFoundMatch(match);
+      setShowMatchFoundDialog(true);
+      console.log("✅ [HomePage] MatchFoundDialog should be displayed now");
     } else {
-      console.error('❌ [HomePage] Invalid match data:', match)
+      console.error("❌ [HomePage] Invalid match data:", match);
     }
-  }
+  };
 
   const handleMatchStart = (match) => {
-    console.log('🚀 [HomePage] handleMatchStart called with match:', match)
-    setShowMatchFoundDialog(false)
-    setFoundMatch(null)
+    console.log("🚀 [HomePage] handleMatchStart called with match:", match);
+    setShowMatchFoundDialog(false);
+    setFoundMatch(null);
     if (onStartMatch && match && match.id) {
-      console.log('✅ [HomePage] Starting match:', match.id)
-      onStartMatch(match)
+      console.log("✅ [HomePage] Starting match:", match.id);
+      onStartMatch(match);
     } else {
-      console.error('❌ [HomePage] Cannot start match - invalid match or onStartMatch:', {
-        match,
-        hasOnStartMatch: !!onStartMatch
-      })
+      console.error(
+        "❌ [HomePage] Cannot start match - invalid match or onStartMatch:",
+        {
+          match,
+          hasOnStartMatch: !!onStartMatch,
+        }
+      );
     }
-  }
+  };
 
   const handleMatchFoundCancel = () => {
-    setShowMatchFoundDialog(false)
-    setFoundMatch(null)
+    setShowMatchFoundDialog(false);
+    setFoundMatch(null);
     // Có thể quay lại matchmaking dialog hoặc home
-  }
+  };
 
   const handleContinueMatch = (match) => {
     if (onStartMatch) {
-      onStartMatch(match)
+      onStartMatch(match);
     }
-  }
+  };
 
   const handleSettingsChange = (newSettings) => {
-    setSettings(newSettings)
-    localStorage.setItem('goGameSettings', JSON.stringify(newSettings))
-  }
+    setSettings(newSettings);
+    localStorage.setItem("goGameSettings", JSON.stringify(newSettings));
+  };
 
   const handleLogout = () => {
-    if (window.confirm('Bạn có chắc muốn đăng xuất?')) {
+    if (window.confirm("Bạn có chắc muốn đăng xuất?")) {
       // Reset matchmaking related states before logging out to avoid leaking old match info
-      setShowMatchFoundDialog(false)
-      setFoundMatch(null)
-      setShowMatchmakingDialog(false)
-      logout()
+      setShowMatchFoundDialog(false);
+      setFoundMatch(null);
+      setShowMatchmakingDialog(false);
+      logout();
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="home-page loading">
         <div className="loading-spinner">Đang tải...</div>
       </div>
-    )
+    );
   }
 
   return (
@@ -232,32 +279,30 @@ const HomePage = ({ onStartMatch }) => {
           <FaUser className="user-icon" />
           <div className="user-details">
             <span className="user-label">Người chơi</span>
-            <span className="username">{statistics?.username || user?.username || 'Khách'}</span>
+            <span className="username">
+              {statistics?.username || user?.username || "Khách"}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Top Right - Settings & Logout */}
       <div className="corner-panel top-right">
-        <button 
+        <button
           className="corner-btn"
           onClick={() => setShowSettingsDialog(true)}
           title="Cài đặt"
         >
           <FaCog />
         </button>
-        <button 
-          className="corner-btn"
-          onClick={handleLogout}
-          title="Đăng xuất"
-        >
+        <button className="corner-btn" onClick={handleLogout} title="Đăng xuất">
           <FaSignOutAlt />
         </button>
       </div>
 
       {/* Middle Left - Leaderboard Preview (below user info) */}
       <div className="corner-panel middle-left">
-        <LeaderboardPreview 
+        <LeaderboardPreview
           topPlayers={topPlayers}
           onViewAll={() => setShowLeaderboard(true)}
           loading={loading}
@@ -275,11 +320,11 @@ const HomePage = ({ onStartMatch }) => {
           <div className="compact-header">
             <FaHistory className="compact-icon" />
             <span className="compact-title">Gần đây</span>
-            <button 
+            <button
               className="view-all-btn"
               onClick={() => {
-                loadAllMatches()
-                setShowHistoryDialog(true)
+                loadAllMatches();
+                setShowHistoryDialog(true);
               }}
               title="Xem tất cả"
             >
@@ -288,7 +333,7 @@ const HomePage = ({ onStartMatch }) => {
           </div>
           <div className="compact-content">
             {recentMatches.length > 0 ? (
-              <MatchList 
+              <MatchList
                 matches={recentMatches.slice(0, 3)}
                 onMatchClick={handleContinueMatch}
                 compact={true}
@@ -304,20 +349,20 @@ const HomePage = ({ onStartMatch }) => {
 
       {/* Info Icon - Bottom Center */}
       <div className="corner-panel bottom-center">
-        <button 
-          className={`info-icon-btn ${showInfoPanel ? 'active' : ''}`}
+        <button
+          className={`info-icon-btn ${showInfoPanel ? "active" : ""}`}
           onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            console.log('Info button clicked, current state:', showInfoPanel)
-            setShowInfoPanel(prev => {
-              const newState = !prev
-              console.log('Setting showInfoPanel to:', newState)
-              return newState
-            })
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("Info button clicked, current state:", showInfoPanel);
+            setShowInfoPanel((prev) => {
+              const newState = !prev;
+              console.log("Setting showInfoPanel to:", newState);
+              return newState;
+            });
           }}
           onMouseDown={(e) => {
-            e.stopPropagation()
+            e.stopPropagation();
           }}
           title="Thông tin về cờ vây"
           type="button"
@@ -327,22 +372,38 @@ const HomePage = ({ onStartMatch }) => {
       </div>
 
       {/* Go Tutorial */}
-      <GoTutorial 
+      <GoTutorial
         isOpen={showInfoPanel}
         onClose={() => setShowInfoPanel(false)}
       />
 
       {/* Interactive Tutorial - Tự động hiển thị cho người mới */}
-      <InteractiveTutorial 
+      <InteractiveTutorial
         isOpen={showInteractiveTutorial}
         onClose={() => setShowInteractiveTutorial(false)}
+        onCompleted={() => {
+          const userIdFromStats = statistics?.user_id;
+          const userIdFromAuth = user?.id || user?.user_id;
+          const tutorialUserId = userIdFromStats || userIdFromAuth || "guest";
+          const tutorialKey = `interactiveTutorialCompleted_${tutorialUserId}`;
+          try {
+            if (typeof window !== "undefined" && window.localStorage) {
+              window.localStorage.setItem(tutorialKey, "true");
+            }
+          } catch (e) {
+            // Nếu localStorage thất bại (ví dụ chế độ private), chỉ log và tiếp tục
+            // eslint-disable-next-line no-console
+            console.error("Failed to persist tutorial completion:", e);
+          }
+          setShowInteractiveTutorial(false);
+        }}
       />
 
       {/* Center - Main Action Button */}
       <div className="center-section">
         <div className="center-content">
           <h1 className="main-title">Cờ Vây</h1>
-          <button 
+          <button
             className="btn-main-action"
             onClick={() => setShowMatchDialog(true)}
           >
@@ -364,6 +425,8 @@ const HomePage = ({ onStartMatch }) => {
         <MatchmakingDialog
           onClose={() => setShowMatchmakingDialog(false)}
           onMatchFound={handleMatchFound}
+          initialBoardSize={matchmakingBoardSize}
+          autoStart
         />
       )}
 
@@ -385,11 +448,14 @@ const HomePage = ({ onStartMatch }) => {
 
       {/* History Dialog */}
       {showHistoryDialog && (
-        <div className="history-dialog-overlay" onClick={() => setShowHistoryDialog(false)}>
+        <div
+          className="history-dialog-overlay"
+          onClick={() => setShowHistoryDialog(false)}
+        >
           <div className="history-dialog" onClick={(e) => e.stopPropagation()}>
             <div className="history-dialog-header">
               <h2>Lịch sử trận đấu</h2>
-              <button 
+              <button
                 className="history-close-btn"
                 onClick={() => setShowHistoryDialog(false)}
               >
@@ -397,11 +463,11 @@ const HomePage = ({ onStartMatch }) => {
               </button>
             </div>
             <div className="history-dialog-content">
-              <MatchList 
+              <MatchList
                 matches={allMatches}
                 onMatchClick={(match) => {
-                  setShowHistoryDialog(false)
-                  handleContinueMatch(match)
+                  setShowHistoryDialog(false);
+                  handleContinueMatch(match);
                 }}
                 compact={false}
               />
@@ -411,12 +477,16 @@ const HomePage = ({ onStartMatch }) => {
       )}
 
       {/* Leaderboard Dialog */}
-      <Leaderboard 
+      <Leaderboard
         isOpen={showLeaderboard}
         onClose={() => setShowLeaderboard(false)}
       />
     </div>
-  )
-}
+  );
+};
 
-export default HomePage
+HomePage.propTypes = {
+  onStartMatch: PropTypes.func,
+};
+
+export default HomePage;

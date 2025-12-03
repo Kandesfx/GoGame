@@ -1,9 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { FaChevronLeft, FaChevronRight, FaTimes, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
-import './InteractiveTutorial.css';
+import React, { useState, useEffect } from "react";
+import {
+  FaChevronLeft,
+  FaChevronRight,
+  FaTimes,
+  FaCheck,
+  FaExclamationTriangle,
+} from "react-icons/fa";
+import "./InteractiveTutorial.css";
 
 // Component bàn cờ 9x9 tương tác
-const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highlightCells = [], errorMessage = null }) => {
+const InteractiveBoard = ({
+  boardSize = 9,
+  stones,
+  onCellClick,
+  disabled,
+  highlightCells = [],
+  errorMessage = null,
+}) => {
   const [hoverPos, setHoverPos] = useState(null);
   const cellSize = 35;
   const padding = 15;
@@ -32,7 +45,7 @@ const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highli
   };
 
   const isHighlighted = (x, y) => {
-    return highlightCells.some(cell => cell.x === x && cell.y === y);
+    return highlightCells.some((cell) => cell.x === x && cell.y === y);
   };
 
   return (
@@ -42,10 +55,14 @@ const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highli
           <FaExclamationTriangle /> {errorMessage}
         </div>
       )}
-      <svg width={boardSizePx} height={boardSizePx} className="interactive-board-svg">
+      <svg
+        width={boardSizePx}
+        height={boardSizePx}
+        className="interactive-board-svg"
+      >
         {/* Nền gỗ */}
         <rect width={boardSizePx} height={boardSizePx} fill="#DEB887" />
-        
+
         {/* Lưới bàn cờ */}
         {Array.from({ length: boardSize }).map((_, i) => (
           <g key={`grid-${i}`}>
@@ -70,7 +87,11 @@ const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highli
 
         {/* Các điểm sao (star points) cho bàn 9x9 */}
         {[
-          [2, 2], [2, 6], [6, 2], [6, 6], [4, 4]
+          [2, 2],
+          [2, 6],
+          [6, 2],
+          [6, 6],
+          [4, 4],
         ].map(([x, y], i) => (
           <circle
             key={`star-${i}`}
@@ -149,7 +170,7 @@ const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highli
 
         {/* Các quân cờ */}
         {Object.entries(stones).map(([key, color]) => {
-          const [x, y] = key.split(',').map(Number);
+          const [x, y] = key.split(",").map(Number);
           const cx = padding + x * cellSize;
           const cy = padding + y * cellSize;
           return (
@@ -158,11 +179,11 @@ const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highli
                 cx={cx}
                 cy={cy}
                 r="14"
-                fill={color === 'black' ? '#000' : '#fff'}
-                stroke={color === 'black' ? '#333' : '#ccc'}
+                fill={color === "black" ? "#000" : "#fff"}
+                stroke={color === "black" ? "#333" : "#ccc"}
                 strokeWidth="1.5"
               />
-              {color === 'white' && (
+              {color === "white" && (
                 <circle
                   cx={cx}
                   cy={cy}
@@ -186,7 +207,7 @@ const InteractiveBoard = ({ boardSize = 9, stones, onCellClick, disabled, highli
               width={cellSize}
               height={cellSize}
               fill="transparent"
-              style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
+              style={{ cursor: disabled ? "not-allowed" : "pointer" }}
               onClick={() => handleCellClick(x, y)}
               onMouseEnter={() => handleCellHover(x, y)}
               onMouseLeave={handleCellLeave}
@@ -204,33 +225,41 @@ const getGroupLiberties = (stones, x, y, boardSize, visited = new Set()) => {
   if (visited.has(key) || x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
     return [];
   }
-  
+
   const color = stones[key];
   if (!color) {
     return [{ x, y }];
   }
-  
+
   visited.add(key);
   const liberties = [];
-  
+
   const neighbors = [
     { x: x - 1, y },
     { x: x + 1, y },
     { x, y: y - 1 },
-    { x, y: y + 1 }
+    { x, y: y + 1 },
   ];
-  
+
   for (const neighbor of neighbors) {
     const neighborKey = `${neighbor.x},${neighbor.y}`;
     if (!visited.has(neighborKey)) {
       if (!stones[neighborKey]) {
         liberties.push({ x: neighbor.x, y: neighbor.y });
       } else if (stones[neighborKey] === color) {
-        liberties.push(...getGroupLiberties(stones, neighbor.x, neighbor.y, boardSize, visited));
+        liberties.push(
+          ...getGroupLiberties(
+            stones,
+            neighbor.x,
+            neighbor.y,
+            boardSize,
+            visited
+          )
+        );
       }
     }
   }
-  
+
   return liberties;
 };
 
@@ -240,50 +269,57 @@ const getGroup = (stones, x, y, boardSize, visited = new Set()) => {
   if (visited.has(key) || x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
     return [];
   }
-  
+
   const color = stones[key];
   if (!color) {
     return [];
   }
-  
+
   visited.add(key);
   const group = [{ x, y }];
-  
+
   const neighbors = [
     { x: x - 1, y },
     { x: x + 1, y },
     { x, y: y - 1 },
-    { x, y: y + 1 }
+    { x, y: y + 1 },
   ];
-  
+
   for (const neighbor of neighbors) {
     const neighborKey = `${neighbor.x},${neighbor.y}`;
     if (!visited.has(neighborKey) && stones[neighborKey] === color) {
-      group.push(...getGroup(stones, neighbor.x, neighbor.y, boardSize, visited));
+      group.push(
+        ...getGroup(stones, neighbor.x, neighbor.y, boardSize, visited)
+      );
     }
   }
-  
+
   return group;
 };
 
 // Hàm kiểm tra và xóa các nhóm quân bị ăn
 const removeCapturedGroups = (stones, x, y, color, boardSize) => {
   const newStones = { ...stones, [`${x},${y}`]: color };
-  const opponentColor = color === 'black' ? 'white' : 'black';
+  const opponentColor = color === "black" ? "white" : "black";
   const captured = [];
-  
+
   // Kiểm tra các nhóm đối phương xung quanh
   const neighbors = [
     { x: x - 1, y },
     { x: x + 1, y },
     { x, y: y - 1 },
-    { x, y: y + 1 }
+    { x, y: y + 1 },
   ];
-  
+
   for (const neighbor of neighbors) {
     const neighborKey = `${neighbor.x},${neighbor.y}`;
     if (newStones[neighborKey] === opponentColor) {
-      const liberties = getGroupLiberties(newStones, neighbor.x, neighbor.y, boardSize);
+      const liberties = getGroupLiberties(
+        newStones,
+        neighbor.x,
+        neighbor.y,
+        boardSize
+      );
       if (liberties.length === 0) {
         // Nhóm này bị ăn
         const group = getGroup(newStones, neighbor.x, neighbor.y, boardSize);
@@ -291,13 +327,13 @@ const removeCapturedGroups = (stones, x, y, color, boardSize) => {
       }
     }
   }
-  
+
   // Xóa các quân bị ăn
   for (const stone of captured) {
     const key = `${stone.x},${stone.y}`;
     delete newStones[key];
   }
-  
+
   return { newStones, capturedCount: captured.length };
 };
 
@@ -306,33 +342,39 @@ const isValidMove = (stones, x, y, color, boardSize) => {
   // Kiểm tra vị trí có trống không
   const key = `${x},${y}`;
   if (stones[key]) {
-    return { valid: false, message: 'Vị trí này đã có quân cờ!' };
+    return { valid: false, message: "Vị trí này đã có quân cờ!" };
   }
-  
+
   // Kiểm tra biên
   if (x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
-    return { valid: false, message: 'Nước đi ngoài bàn cờ!' };
+    return { valid: false, message: "Nước đi ngoài bàn cờ!" };
   }
-  
+
   // Tạo bản sao để kiểm tra
   const testStones = { ...stones, [key]: color };
-  
+
   // Kiểm tra xem có ăn được quân đối phương không
-  const { newStones: afterCapture } = removeCapturedGroups(stones, x, y, color, boardSize);
-  
+  const { newStones: afterCapture } = removeCapturedGroups(
+    stones,
+    x,
+    y,
+    color,
+    boardSize
+  );
+
   // Kiểm tra khí của quân vừa đặt sau khi ăn
   const liberties = getGroupLiberties(afterCapture, x, y, boardSize);
   if (liberties.length === 0) {
-    return { valid: false, message: 'Quân cờ phải có ít nhất 1 khí!' };
+    return { valid: false, message: "Quân cờ phải có ít nhất 1 khí!" };
   }
-  
+
   return { valid: true, message: null };
 };
 
-const InteractiveTutorial = ({ isOpen, onClose }) => {
+const InteractiveTutorial = ({ isOpen, onClose, onCompleted }) => {
   const [currentLesson, setCurrentLesson] = useState(0);
   const [stones, setStones] = useState({});
-  const [currentPlayer, setCurrentPlayer] = useState('black');
+  const [currentPlayer, setCurrentPlayer] = useState("black");
   const [errorMessage, setErrorMessage] = useState(null);
   const [highlightCells, setHighlightCells] = useState([]);
   const [lessonCompleted, setLessonCompleted] = useState(false);
@@ -342,74 +384,88 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
   const lessons = [
     {
       title: "Quân đen đi trước, quân trắng đi sau",
-      description: "Trong cờ vây, quân đen luôn đi trước. Hãy đặt quân đen đầu tiên vào bàn cờ.",
+      description:
+        "Trong cờ vây, quân đen luôn đi trước. Hãy đặt quân đen đầu tiên vào bàn cờ.",
       instruction: "Click vào một giao điểm trên bàn cờ để đặt quân đen.",
       goal: (stones, currentPlayer) => {
-        const blackCount = Object.values(stones).filter(c => c === 'black').length;
+        const blackCount = Object.values(stones).filter(
+          (c) => c === "black"
+        ).length;
         return blackCount >= 1;
       },
       initialStones: {},
-      initialPlayer: 'black',
-      highlightCells: []
+      initialPlayer: "black",
+      highlightCells: [],
     },
     {
       title: "Quân cờ phải có khí",
-      description: "Mỗi quân cờ cần có 'khí' (các điểm trống liền kề) để tồn tại. Hãy đặt quân trắng vào một vị trí có khí.",
-      instruction: "Đặt quân trắng vào một vị trí có ít nhất 1 điểm trống liền kề.",
+      description:
+        "Mỗi quân cờ cần có 'khí' (các điểm trống liền kề) để tồn tại. Hãy đặt quân trắng vào một vị trí có khí.",
+      instruction:
+        "Đặt quân trắng vào một vị trí có ít nhất 1 điểm trống liền kề.",
       goal: (stones, currentPlayer) => {
-        const whiteCount = Object.values(stones).filter(c => c === 'white').length;
+        const whiteCount = Object.values(stones).filter(
+          (c) => c === "white"
+        ).length;
         return whiteCount >= 1;
       },
-      initialStones: { '4,4': 'black' },
-      initialPlayer: 'white',
+      initialStones: { "4,4": "black" },
+      initialPlayer: "white",
       highlightCells: [
-        { x: 3, y: 4 }, { x: 5, y: 4 }, { x: 4, y: 3 }, { x: 4, y: 5 }
-      ]
+        { x: 3, y: 4 },
+        { x: 5, y: 4 },
+        { x: 4, y: 3 },
+        { x: 4, y: 5 },
+      ],
     },
     {
       title: "Cách ăn quân",
-      description: "Khi bao vây quân địch và lấy hết khí của chúng, bạn có thể ăn quân. Ở đây, quân đen đã bị bao vây 3 phía, chỉ còn 1 khí. Hãy đặt quân trắng vào vị trí còn lại để ăn quân đen.",
-      instruction: "Đặt quân trắng vào vị trí được đánh dấu (khí cuối cùng) để ăn quân đen.",
+      description:
+        "Khi bao vây quân địch và lấy hết khí của chúng, bạn có thể ăn quân. Ở đây, quân đen đã bị bao vây 3 phía, chỉ còn 1 khí. Hãy đặt quân trắng vào vị trí còn lại để ăn quân đen.",
+      instruction:
+        "Đặt quân trắng vào vị trí được đánh dấu (khí cuối cùng) để ăn quân đen.",
       goal: (stones, currentPlayer) => {
         // Kiểm tra xem không còn quân đen nào trên bàn cờ (đã bị ăn)
-        const blackStones = Object.values(stones).filter(c => c === 'black');
+        const blackStones = Object.values(stones).filter((c) => c === "black");
         return blackStones.length === 0;
       },
-      initialStones: { 
-        '4,4': 'black',  // Quân đen ở giữa
-        '3,4': 'white',  // Đã bao vây bên trái
-        '5,4': 'white',  // Đã bao vây bên phải
-        '4,3': 'white'   // Đã bao vây bên trên
+      initialStones: {
+        "4,4": "black", // Quân đen ở giữa
+        "3,4": "white", // Đã bao vây bên trái
+        "5,4": "white", // Đã bao vây bên phải
+        "4,3": "white", // Đã bao vây bên trên
       },
-      initialPlayer: 'white',
+      initialPlayer: "white",
       highlightCells: [
-        { x: 4, y: 5 }  // Chỉ còn 1 khí ở dưới
-      ]
+        { x: 4, y: 5 }, // Chỉ còn 1 khí ở dưới
+      ],
     },
     {
       title: "Luật cướp cờ (KO)",
-      description: "Luật KO ngăn việc lặp lại vô tận cùng một nước đi. Ở đây, quân trắng có thể ăn quân đen. Sau đó, nếu đen muốn ăn lại ngay ở cùng vị trí sẽ tạo ra KO. Hãy đánh vài nước để hiểu luật này.",
-      instruction: "Đặt quân trắng vào vị trí được đánh dấu để ăn quân đen. Sau đó đen sẽ đánh lại ở cùng vị trí - đây chính là tình huống KO!",
+      description:
+        "Luật KO ngăn việc lặp lại vô tận cùng một nước đi. Ở đây, quân trắng có thể ăn quân đen. Sau đó, nếu đen muốn ăn lại ngay ở cùng vị trí sẽ tạo ra KO. Hãy đánh vài nước để hiểu luật này.",
+      instruction:
+        "Đặt quân trắng vào vị trí được đánh dấu để ăn quân đen. Sau đó đen sẽ đánh lại ở cùng vị trí - đây chính là tình huống KO!",
       goal: (stones, currentPlayer, koDetected) => {
         // Hoàn thành khi phát hiện KO
         return koDetected;
       },
       initialStones: {
         // Setup theo tọa độ từ GoTutorial.jsx
-        '4,2': 'black',
-        '5,2': 'white',
-        '3,3': 'black',
-        '5,3': 'black',
-        '6,3': 'white',
-        '4,4': 'black',
-        '5,4': 'white'
+        "4,2": "black",
+        "5,2": "white",
+        "3,3": "black",
+        "5,3": "black",
+        "6,3": "white",
+        "4,4": "black",
+        "5,4": "white",
         // Vị trí (4,3) trống - đây là nơi có thể tạo KO
       },
-      initialPlayer: 'white',
+      initialPlayer: "white",
       highlightCells: [
-        { x: 4, y: 3 }  // Vị trí có thể ăn quân đen (4,4) - đánh ở đây để tạo tình huống KO
-      ]
-    }
+        { x: 4, y: 3 }, // Vị trí có thể ăn quân đen (4,4) - đánh ở đây để tạo tình huống KO
+      ],
+    },
   ];
 
   useEffect(() => {
@@ -421,7 +477,7 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
   const resetLesson = () => {
     const lesson = lessons[currentLesson];
     setStones(lesson.initialStones || {});
-    setCurrentPlayer(lesson.initialPlayer || 'black');
+    setCurrentPlayer(lesson.initialPlayer || "black");
     setErrorMessage(null);
     setHighlightCells(lesson.highlightCells || []);
     setLessonCompleted(false);
@@ -434,7 +490,7 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
   const stonesToString = (stones) => {
     const sortedKeys = Object.keys(stones).sort();
     const sortedStones = {};
-    sortedKeys.forEach(key => {
+    sortedKeys.forEach((key) => {
       sortedStones[key] = stones[key];
     });
     return JSON.stringify(sortedStones);
@@ -446,22 +502,22 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
     const currentState = stonesToString(newStones);
     // KO pattern: state0 -> state1 -> state2 (nếu state2 === state0, đây là KO)
     // history chứa các trạng thái TRƯỚC khi đánh nước hiện tại
-    // Ví dụ: 
+    // Ví dụ:
     //   - Nước 1: stones = state0, newStones = state1, history = [state0]
     //   - Nước 2: stones = state1, newStones = state2, history = [state0, state1]
     //   - Nếu state2 === state0, đây là KO
-    
+
     // Kiểm tra với tất cả các state trong history (trừ state ngay trước)
     // Vì state ngay trước là state trước khi đánh nước hiện tại
     if (history.length >= 2) {
       // Kiểm tra với state cách đó 2 nước (đây là pattern KO điển hình)
       const twoMovesAgo = history[history.length - 2];
       if (currentState === twoMovesAgo) {
-        console.log('KO detected: currentState matches two moves ago');
+        console.log("KO detected: currentState matches two moves ago");
         return true; // Phát hiện KO
       }
     }
-    
+
     // Kiểm tra với tất cả các state trước đó (trừ state ngay trước) để đảm bảo
     if (history.length >= 1) {
       for (let i = 0; i < history.length - 1; i++) {
@@ -471,14 +527,14 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
         }
       }
     }
-    
+
     return false;
   };
 
   const handleCellClick = (x, y) => {
     const lesson = lessons[currentLesson];
     const validation = isValidMove(stones, x, y, currentPlayer, 9);
-    
+
     if (!validation.valid) {
       setErrorMessage(validation.message);
       setTimeout(() => setErrorMessage(null), 3000);
@@ -486,23 +542,29 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
     }
 
     setErrorMessage(null);
-    
+
     // Đặt quân và xóa các nhóm bị ăn
-    const { newStones, capturedCount } = removeCapturedGroups(stones, x, y, currentPlayer, 9);
-    
+    const { newStones, capturedCount } = removeCapturedGroups(
+      stones,
+      x,
+      y,
+      currentPlayer,
+      9
+    );
+
     // Lưu trạng thái TRƯỚC khi đánh vào lịch sử (để so sánh với trạng thái SAU khi đánh)
     const newHistory = [...boardHistory, stonesToString(stones)];
-    
+
     // Kiểm tra KO (chỉ cho bài học KO) - phải kiểm tra TRƯỚC khi update state
     if (currentLesson === 3) {
-      console.log('Checking KO:', {
+      console.log("Checking KO:", {
         currentState: stonesToString(newStones),
         history: newHistory,
-        historyLength: newHistory.length
+        historyLength: newHistory.length,
       });
       const isKo = checkKo(newStones, newHistory);
       if (isKo) {
-        console.log('KO DETECTED!');
+        console.log("KO DETECTED!");
         setKoDetected(true);
         setErrorMessage(null);
         setLessonCompleted(true);
@@ -511,18 +573,29 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
         return; // Dừng lại, không đổi lượt
       }
     }
-    
+
     // Update history và stones
     setBoardHistory(newHistory);
-    
     setStones(newStones);
 
+    // Bài học 2: sau khi đặt quân trắng, highlight các khí của quân trắng vừa đặt
+    if (currentLesson === 1) {
+      const liberties = getGroupLiberties(newStones, x, y, 9);
+      setHighlightCells(liberties || []);
+    }
+
     // Kiểm tra xem đã hoàn thành bài học chưa
-    if (lesson.goal(newStones, currentPlayer, koDetected || (currentLesson === 3 && checkKo(newStones, newHistory)))) {
+    if (
+      lesson.goal(
+        newStones,
+        currentPlayer,
+        koDetected || (currentLesson === 3 && checkKo(newStones, newHistory))
+      )
+    ) {
       setLessonCompleted(true);
     } else {
       // Đổi lượt chơi
-      setCurrentPlayer(currentPlayer === 'black' ? 'white' : 'black');
+      setCurrentPlayer(currentPlayer === "black" ? "white" : "black");
     }
   };
 
@@ -531,7 +604,11 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
       setCurrentLesson(currentLesson + 1);
     } else {
       // Hoàn thành tất cả bài học
-      onClose();
+      if (onCompleted) {
+        onCompleted();
+      } else if (onClose) {
+        onClose();
+      }
     }
   };
 
@@ -549,14 +626,16 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
 
   return (
     <div className="interactive-tutorial-overlay" onClick={onClose}>
-      <div className="interactive-tutorial-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="interactive-tutorial-dialog"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="interactive-tutorial-header">
-          <h2 className="interactive-tutorial-title">Hướng Dẫn Chơi Cờ Vây - Bàn Cờ Ảo</h2>
-          <button
-            onClick={onClose}
-            className="interactive-tutorial-close-btn"
-          >
+          <h2 className="interactive-tutorial-title">
+            Hướng Dẫn Chơi Cờ Vây - Bàn Cờ Ảo
+          </h2>
+          <button onClick={onClose} className="interactive-tutorial-close-btn">
             <FaTimes size={24} />
           </button>
         </div>
@@ -569,7 +648,9 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
         <div className="interactive-tutorial-progress-bar">
           <div
             className="interactive-tutorial-progress-fill"
-            style={{ width: `${((currentLesson + 1) / lessons.length) * 100}%` }}
+            style={{
+              width: `${((currentLesson + 1) / lessons.length) * 100}%`,
+            }}
           />
         </div>
 
@@ -578,7 +659,7 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
           <h3 className="interactive-tutorial-step-title">
             {currentLessonData.title}
           </h3>
-          
+
           {/* Main layout: Bàn cờ bên trái, mô tả bên phải */}
           <div className="interactive-tutorial-main-layout">
             {/* Bàn cờ tương tác - Bên trái */}
@@ -591,11 +672,13 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
                 highlightCells={highlightCells}
                 errorMessage={errorMessage}
               />
-              
+
               <div className="interactive-tutorial-player-info">
                 <div className={`player-indicator ${currentPlayer}`}>
                   <div className="player-stone-preview"></div>
-                  <span>Lượt: {currentPlayer === 'black' ? 'Đen' : 'Trắng'}</span>
+                  <span>
+                    Lượt: {currentPlayer === "black" ? "Đen" : "Trắng"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -616,7 +699,12 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
                   <FaExclamationTriangle className="ko-icon" />
                   <div>
                     <strong>Tình huống KO đã được phát hiện!</strong>
-                    <p>Bạn đã tạo ra tình huống cướp cờ (KO). Luật KO ngăn việc lặp lại vô tận cùng một nước đi. Sau khi bị ăn, bạn không thể ngay lập tức ăn lại ở cùng vị trí mà phải đánh ở chỗ khác trước.</p>
+                    <p>
+                      Bạn đã tạo ra tình huống cướp cờ (KO). Luật KO ngăn việc
+                      lặp lại vô tận cùng một nước đi. Sau khi bị ăn, bạn không
+                      thể ngay lập tức ăn lại ở cùng vị trí mà phải đánh ở chỗ
+                      khác trước.
+                    </p>
                   </div>
                 </div>
               )}
@@ -637,7 +725,7 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
             onClick={prevLesson}
             disabled={currentLesson === 0}
             className={`interactive-tutorial-nav-btn interactive-tutorial-nav-prev ${
-              currentLesson === 0 ? 'disabled' : ''
+              currentLesson === 0 ? "disabled" : ""
             }`}
           >
             <FaChevronLeft size={20} />
@@ -654,12 +742,12 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
 
           <button
             onClick={nextLesson}
-            disabled={!lessonCompleted && currentLesson < lessons.length - 1}
+            disabled={!lessonCompleted}
             className={`interactive-tutorial-nav-btn interactive-tutorial-nav-next ${
-              !lessonCompleted && currentLesson < lessons.length - 1 ? 'disabled' : ''
+              !lessonCompleted ? "disabled" : ""
             }`}
           >
-            {currentLesson === lessons.length - 1 ? 'Hoàn thành' : 'Tiếp'}
+            {currentLesson === lessons.length - 1 ? "Hoàn thành" : "Tiếp"}
             {currentLesson < lessons.length - 1 && <FaChevronRight size={20} />}
           </button>
         </div>
@@ -669,4 +757,3 @@ const InteractiveTutorial = ({ isOpen, onClose }) => {
 };
 
 export default InteractiveTutorial;
-
