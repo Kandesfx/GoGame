@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
-import StoneColorDialog from './StoneColorDialog'
-import './MatchDialog.css'
+import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import StoneColorDialog from "./StoneColorDialog";
+import "./MatchDialog.css";
 
 /**
  * Thiết kế mới cho MatchDialog
- * 
- * Vẫn giữ nguyên props:
- *  - onClose()
+ *
+ * Props:
+ *  - onClose(): đóng dialog
  *  - onCreateMatch(matchType, level, boardSize, playerColor?)
  *
  * Mapping:
@@ -15,103 +16,103 @@ import './MatchDialog.css'
  *  - PVP + Ghép online:  matchType = 'matchmaking'
  */
 const MatchDialog = ({ onClose, onCreateMatch }) => {
-  const [expandedMode, setExpandedMode] = useState(null) // 'pvp' | 'pve' | null
+  const [expandedMode, setExpandedMode] = useState(null); // 'pvp' | 'pve' | null
   const [pvpSettings, setPvpSettings] = useState({
-    matchType: null,        // 'code' | 'online'
-    boardSize: null,        // 9 | 13 | 19
-    timeControlMinutes: 10, // 5 | 10 | 15 | 20 | 25 | 30
-  })
+    matchType: null, // 'code' | 'online'
+    boardSize: null, // 9 | 13 | 19
+    // Thời gian sẽ tự động gắn theo kích thước bàn cờ:
+    // 9x9  -> 10 phút
+    // 13x13 -> 20 phút
+    // 19x19 -> 30 phút
+    timeControlMinutes: 10,
+  });
   const [pveSettings, setPveSettings] = useState({
-    aiLevel: null,     // 1–4
-    boardSize: null,   // 9 | 13 | 19
-  })
-  const [showStoneColorDialog, setShowStoneColorDialog] = useState(false)
+    aiLevel: null, // 1–4
+    boardSize: null, // 9 | 13 | 19
+  });
+  const [showStoneColorDialog, setShowStoneColorDialog] = useState(false);
 
   // Esc đóng dialog (hoặc đóng StoneColorDialog nếu đang mở)
   useEffect(() => {
     const handleEscape = (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         if (showStoneColorDialog) {
-          setShowStoneColorDialog(false)
+          setShowStoneColorDialog(false);
         } else {
-          onClose()
+          onClose();
         }
       }
-    }
+    };
 
-    document.addEventListener('keydown', handleEscape)
+    document.addEventListener("keydown", handleEscape);
     return () => {
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [onClose, showStoneColorDialog])
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [onClose, showStoneColorDialog]);
 
   const handleOverlayClick = (e) => {
     if (e.target === e.currentTarget) {
-      onClose()
+      onClose();
     }
-  }
+  };
 
   const handleModeClick = (mode) => {
     if (expandedMode === mode) {
-      setExpandedMode(null)
+      setExpandedMode(null);
     } else {
-      setExpandedMode(mode)
-      if (mode === 'pvp') {
-        setPveSettings({ aiLevel: null, boardSize: null })
+      setExpandedMode(mode);
+      if (mode === "pvp") {
+        setPveSettings({ aiLevel: null, boardSize: null });
       } else {
-        setPvpSettings({ matchType: null, boardSize: null })
+        setPvpSettings({ matchType: null, boardSize: null });
       }
     }
-  }
+  };
 
-  const isPvpComplete =
-    pvpSettings.matchType &&
-    pvpSettings.boardSize &&
-    pvpSettings.timeControlMinutes
-  const isPveComplete = pveSettings.aiLevel && pveSettings.boardSize
+  const isPvpComplete = pvpSettings.matchType && pvpSettings.boardSize;
+  const isPveComplete = pveSettings.aiLevel && pveSettings.boardSize;
 
   const handleCreateClick = () => {
-    if (expandedMode === 'pvp' && isPvpComplete) {
-      const boardSize = pvpSettings.boardSize
-      const timeControlMinutes = pvpSettings.timeControlMinutes
-      if (pvpSettings.matchType === 'code') {
+    if (expandedMode === "pvp" && isPvpComplete) {
+      const boardSize = pvpSettings.boardSize;
+      const timeControlMinutes = pvpSettings.timeControlMinutes;
+      if (pvpSettings.matchType === "code") {
         // Đấu với người (mã tham gia) – dùng thời gian đã chọn
-        onCreateMatch('pvp', timeControlMinutes, boardSize)
-      } else if (pvpSettings.matchType === 'online') {
+        onCreateMatch("pvp", timeControlMinutes, boardSize);
+      } else if (pvpSettings.matchType === "online") {
         // Ghép online (tạm thời chưa dùng thời gian)
-        onCreateMatch('matchmaking', null, boardSize)
+        onCreateMatch("matchmaking", null, boardSize);
       }
-      onClose()
-    } else if (expandedMode === 'pve' && isPveComplete) {
+      onClose();
+    } else if (expandedMode === "pve" && isPveComplete) {
       // PVE → mở dialog chọn màu
-      setShowStoneColorDialog(true)
+      setShowStoneColorDialog(true);
     }
-  }
+  };
 
   const handleStoneColorSubmit = (color) => {
     if (!isPveComplete) {
-      setShowStoneColorDialog(false)
-      return
+      setShowStoneColorDialog(false);
+      return;
     }
-    const level = pveSettings.aiLevel
-    const boardSize = pveSettings.boardSize
-    onCreateMatch('ai', level, boardSize, color)
-    setShowStoneColorDialog(false)
-    onClose()
-  }
+    const level = pveSettings.aiLevel;
+    const boardSize = pveSettings.boardSize;
+    onCreateMatch("ai", level, boardSize, color);
+    setShowStoneColorDialog(false);
+    onClose();
+  };
 
   return (
     <div className="match-dialog-overlay" onClick={handleOverlayClick}>
-      <div className="match-dialog match-dialog-new" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="match-dialog match-dialog-new"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mode-dialog">
           {/* Header */}
           <div className="mode-header">
             <h2>CHỌN CHẾ ĐỘ</h2>
-            <button
-              type="button"
-              className="mode-close"
-              onClick={onClose}
-            >
+            <button type="button" className="mode-close" onClick={onClose}>
               ×
             </button>
           </div>
@@ -121,14 +122,13 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
           {/* PVP Card */}
           <div
             className={
-              'mode-card ' +
-              (expandedMode === 'pvp' ? 'mode-card-active' : '')
+              "mode-card " + (expandedMode === "pvp" ? "mode-card-active" : "")
             }
           >
             <button
               type="button"
               className="mode-card-header"
-              onClick={() => handleModeClick('pvp')}
+              onClick={() => handleModeClick("pvp")}
             >
               <div className="mode-card-left">
                 <div className="mode-icon mode-icon-pvp">
@@ -139,14 +139,14 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                   <div className="mode-subtitle">Đấu với người chơi</div>
                 </div>
               </div>
-              {expandedMode === 'pvp' && (
+              {expandedMode === "pvp" && (
                 <div className="mode-check">
                   <span>✓</span>
                 </div>
               )}
             </button>
 
-            {expandedMode === 'pvp' && (
+            {expandedMode === "pvp" && (
               <div className="mode-content fade-in">
                 <div className="mode-section">
                   <div className="mode-section-label">Loại trận đấu</div>
@@ -154,13 +154,13 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                     <button
                       type="button"
                       className={
-                        'mode-pill ' +
-                        (pvpSettings.matchType === 'code'
-                          ? 'mode-pill-active'
-                          : '')
+                        "mode-pill " +
+                        (pvpSettings.matchType === "code"
+                          ? "mode-pill-active"
+                          : "")
                       }
                       onClick={() =>
-                        setPvpSettings({ ...pvpSettings, matchType: 'code' })
+                        setPvpSettings({ ...pvpSettings, matchType: "code" })
                       }
                     >
                       Mã tham gia
@@ -168,13 +168,13 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                     <button
                       type="button"
                       className={
-                        'mode-pill ' +
-                        (pvpSettings.matchType === 'online'
-                          ? 'mode-pill-active'
-                          : '')
+                        "mode-pill " +
+                        (pvpSettings.matchType === "online"
+                          ? "mode-pill-active"
+                          : "")
                       }
                       onClick={() =>
-                        setPvpSettings({ ...pvpSettings, matchType: 'online' })
+                        setPvpSettings({ ...pvpSettings, matchType: "online" })
                       }
                     >
                       Ghép online
@@ -186,25 +186,31 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                   <div className="mode-section-label">Kích thước bàn cờ</div>
                   <div className="mode-button-grid mode-button-grid-3">
                     {[
-                      { label: '9x9', value: 9 },
-                      { label: '13x13', value: 13 },
-                      { label: '19x19', value: 19 },
+                      { label: "9x9", value: 9 },
+                      { label: "13x13", value: 13 },
+                      { label: "19x19", value: 19 },
                     ].map((size) => (
                       <button
                         key={size.value}
                         type="button"
                         className={
-                          'mode-pill ' +
+                          "mode-pill " +
                           (pvpSettings.boardSize === size.value
-                            ? 'mode-pill-active'
-                            : '')
+                            ? "mode-pill-active"
+                            : "")
                         }
-                        onClick={() =>
+                        onClick={() => {
+                          // Tự động gán thời gian theo kích thước bàn cờ
+                          let minutes = 10;
+                          if (size.value === 13) minutes = 20;
+                          else if (size.value === 19) minutes = 30;
+
                           setPvpSettings({
                             ...pvpSettings,
                             boardSize: size.value,
-                          })
-                        }
+                            timeControlMinutes: minutes,
+                          });
+                        }}
                       >
                         {size.label}
                       </button>
@@ -212,33 +218,9 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                   </div>
                 </div>
 
-                <div className="mode-section">
-                  <div className="mode-section-label">
-                    Thời gian cho mỗi người chơi (phút)
-                  </div>
-                  <div className="mode-button-grid mode-button-grid-3">
-                    {[5, 10, 15, 20, 25, 30].map((minutes) => (
-                      <button
-                        key={minutes}
-                        type="button"
-                        className={
-                          'mode-pill ' +
-                          (pvpSettings.timeControlMinutes === minutes
-                            ? 'mode-pill-active'
-                            : '')
-                        }
-                        onClick={() =>
-                          setPvpSettings({
-                            ...pvpSettings,
-                            timeControlMinutes: minutes,
-                          })
-                        }
-                      >
-                        {minutes}'
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {/* Thời gian cho mỗi người chơi được gán tự động theo kích thước bàn cờ
+                    (9x9 → 10 phút, 13x13 → 20 phút, 19x19 → 30 phút).
+                    Không hiển thị phần UI riêng để người chơi chỉnh. */}
               </div>
             )}
           </div>
@@ -246,14 +228,13 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
           {/* PVE Card */}
           <div
             className={
-              'mode-card ' +
-              (expandedMode === 'pve' ? 'mode-card-active' : '')
+              "mode-card " + (expandedMode === "pve" ? "mode-card-active" : "")
             }
           >
             <button
               type="button"
               className="mode-card-header"
-              onClick={() => handleModeClick('pve')}
+              onClick={() => handleModeClick("pve")}
             >
               <div className="mode-card-left">
                 <div className="mode-icon mode-icon-pve">
@@ -264,32 +245,32 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                   <div className="mode-subtitle">Đấu với máy</div>
                 </div>
               </div>
-              {expandedMode === 'pve' && (
+              {expandedMode === "pve" && (
                 <div className="mode-check">
                   <span>✓</span>
                 </div>
               )}
             </button>
 
-            {expandedMode === 'pve' && (
+            {expandedMode === "pve" && (
               <div className="mode-content fade-in">
                 <div className="mode-section">
                   <div className="mode-section-label">Cấp độ AI</div>
                   <div className="mode-button-grid mode-button-grid-2">
                     {[
-                      { label: 'Dễ', value: 1 },
-                      { label: 'Trung bình', value: 2 },
-                      { label: 'Khó', value: 3 },
-                      { label: 'Siêu khó', value: 4 },
+                      { label: "Dễ", value: 1 },
+                      { label: "Trung bình", value: 2 },
+                      { label: "Khó", value: 3 },
+                      { label: "Siêu khó", value: 4 },
                     ].map((level) => (
                       <button
                         key={level.value}
                         type="button"
                         className={
-                          'mode-pill ' +
+                          "mode-pill " +
                           (pveSettings.aiLevel === level.value
-                            ? 'mode-pill-active'
-                            : '')
+                            ? "mode-pill-active"
+                            : "")
                         }
                         onClick={() =>
                           setPveSettings({
@@ -308,18 +289,18 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
                   <div className="mode-section-label">Kích thước bàn cờ</div>
                   <div className="mode-button-grid mode-button-grid-3">
                     {[
-                      { label: '9x9', value: 9 },
-                      { label: '13x13', value: 13 },
-                      { label: '19x19', value: 19 },
+                      { label: "9x9", value: 9 },
+                      { label: "13x13", value: 13 },
+                      { label: "19x19", value: 19 },
                     ].map((size) => (
                       <button
                         key={size.value}
                         type="button"
                         className={
-                          'mode-pill ' +
+                          "mode-pill " +
                           (pveSettings.boardSize === size.value
-                            ? 'mode-pill-active'
-                            : '')
+                            ? "mode-pill-active"
+                            : "")
                         }
                         onClick={() =>
                           setPveSettings({
@@ -358,8 +339,12 @@ const MatchDialog = ({ onClose, onCreateMatch }) => {
         />
       )}
     </div>
-  )
-}
+  );
+};
 
-export default MatchDialog
+export default MatchDialog;
 
+MatchDialog.propTypes = {
+  onClose: PropTypes.func,
+  onCreateMatch: PropTypes.func,
+};

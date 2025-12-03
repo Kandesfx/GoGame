@@ -40,6 +40,14 @@ from ..models.sql import match as match_model
 from ..models.sql import user as user_model
 from ..schemas import matches as match_schema
 
+# Import ML model service
+try:
+    from .ml_model_service import get_ml_model_service
+    _ML_MODEL_AVAILABLE = True
+except ImportError:
+    _ML_MODEL_AVAILABLE = False
+    logging.warning("ML model service not available")
+
 logger = logging.getLogger(__name__)
 
 
@@ -1411,9 +1419,21 @@ class MatchService:
             logger.warning(f"AI level not set for match {match.id}")
             return None
         
-        logger.debug(f"AI move: direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER}, board={board is not None}")
+        logger.debug(f"AI move: ml={_ML_MODEL_AVAILABLE}, direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER}, board={board is not None}")
         
-        # Try direct import first (nếu có gogame_py và board)
+        # Try ML model first (nếu có)
+        if _ML_MODEL_AVAILABLE:
+            try:
+                logger.info(f"🤖 [ML] Trying ML model AI move for match {match.id}")
+                result = await self._make_ai_move_ml(match)
+                if result:
+                    logger.info(f"✅ [ML] ML model AI move successful for match {match.id}")
+                    return result
+                logger.debug(f"[ML] ML model AI move returned None, falling back to traditional AI")
+            except Exception as e:
+                logger.warning(f"[ML] ML model AI move failed, falling back to traditional AI: {e}", exc_info=True)
+        
+        # Try direct import (nếu có gogame_py và board)
         if _GOGAME_PY_DIRECT and self.ai_player and go and board:
             try:
                 logger.debug(f"Trying direct AI move")
@@ -1436,8 +1456,144 @@ class MatchService:
                 logger.error(f"Wrapper AI move failed: {e}", exc_info=True)
                 return None
         
-        logger.warning(f"AI not available for match {match.id} (direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER})")
+        logger.warning(f"AI not available for match {match.id} (ml={_ML_MODEL_AVAILABLE}, direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER})")
         return None
+    
+    async def _make_ai_move_ml(self, match: match_model.Match) -> dict | None:
+        """AI move selection sử dụng ML model."""
+        try:
+            ml_service = get_ml_model_service()
+            if not ml_service or not ml_service.is_loaded():
+                logger.warning("ML model service not available or not loaded")
+                return None
+            
+            # Get board state from MongoDB
+            collection = self.mongo_db.get_collection("games")
+            game_doc = await collection.find_one({"match_id": match.id})
+            
+            if not game_doc:
+                logger.error(f"Game state not found for match {match.id}")
+                return None
+            
+            board_position = game_doc.get("board_position", {})
+            current_player = game_doc.get("current_player", "B")
+            
+            # Lấy move history (last 4 moves)
+            moves = game_doc.get("moves", [])
+            move_history = []
+            for move in moves[-4:]:
+                if move.get("position"):
+                    x, y = move["position"]
+                    move_history.append((x, y))
+            
+            # Predict move
+            loop = asyncio.get_event_loop()
+            best_move, policy_prob, win_prob = await loop.run_in_executor(
+                None,
+                ml_service.predict_move,
+                board_position,
+                current_player,
+                move_history if move_history else None,
+                None  # valid_moves - sẽ validate sau
+            )
+            
+            if best_move is None:
+                logger.warning("ML model returned no move")
+                return None
+            
+            x, y = best_move
+            
+            # Validate move (kiểm tra có hợp lệ không)
+            # Lấy board để validate
+            board = await self._get_or_create_board(match)
+            if board:
+                try:
+                    ai_color = go.Color.Black if current_player == "B" else go.Color.White
+                    move = go.Move(x, y, ai_color)
+                    
+                    if not board.is_legal_move(move):
+                        logger.warning(f"ML model move ({x}, {y}) is not legal, trying pass")
+                        # Thử pass nếu move không hợp lệ
+                        move = go.Move.Pass(ai_color)
+                        if not board.is_legal_move(move):
+                            logger.error("Even pass is not legal")
+                            return None
+                        x, y = None, None
+                except Exception as e:
+                    logger.warning(f"Error validating ML move: {e}")
+                    return None
+            
+            # Apply move và tính captured stones
+            captured_stones = []
+            if x is not None and y is not None:
+                # Tính captured stones (sử dụng fallback logic)
+                captured_stones = self._calculate_capture_fallback(
+                    board_position, x, y, current_player, match.board_size
+                )
+                
+                # Cập nhật board_position
+                board_position = board_position.copy()
+                board_position[f"{x},{y}"] = current_player
+                for cx, cy in captured_stones:
+                    key = f"{cx},{cy}"
+                    if key in board_position:
+                        del board_position[key]
+            else:
+                # Pass move
+                board_position = board_position.copy()
+            
+            # Cập nhật current_player
+            next_player = "W" if current_player == "B" else "B"
+            
+            # Lưu move vào MongoDB
+            move_number = len(moves) + 1
+            move_doc = {
+                "number": move_number,
+                "color": current_player,
+                "position": [x, y] if x is not None and y is not None else None,
+                "captured": captured_stones,
+            }
+            
+            # Tính board diff
+            board_diff = {
+                "added": {},
+                "removed": []
+            }
+            if x is not None and y is not None:
+                board_diff["added"][f"{x},{y}"] = current_player
+            for cx, cy in captured_stones:
+                board_diff["removed"].append(f"{cx},{cy}")
+            
+            # Cập nhật board_history
+            board_history = game_doc.get("board_history", [])
+            new_board_history = board_history + [board_position.copy()]
+            if len(new_board_history) > 10:
+                new_board_history = new_board_history[-10:]
+            
+            await collection.update_one(
+                {"match_id": match.id},
+                {
+                    "$push": {"moves": move_doc},
+                    "$set": {
+                        "current_player": next_player,
+                        "board_position": board_position,
+                        "board_history": new_board_history,
+                    },
+                },
+            )
+            
+            logger.info(f"🤖 [ML] ML model AI move: ({x}, {y}), prob={policy_prob:.4f}, win_prob={win_prob:.4f}")
+            return {
+                "x": x,
+                "y": y,
+                "is_pass": x is None or y is None,
+                "captured": captured_stones,
+                "board_diff": board_diff,
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in ML model AI move: {e}", exc_info=True)
+            return None
     
     async def _make_ai_move_direct(self, match: match_model.Match, board: "go.Board") -> dict | None:
         """AI move selection với direct import."""

@@ -455,15 +455,29 @@ class MatchmakingService:
                 room_code = uuid4().hex[:6].upper()
                 logger.warning(f"Could not generate unique room code for matchmaking, using fallback: {room_code}")
             
-            # Create match với board_size đã validate và room_code
+            # Xác định thời gian cho mỗi người chơi dựa trên kích thước bàn cờ
+            # 9x9  -> 10 phút
+            # 13x13 -> 20 phút
+            # 19x19 -> 30 phút
+            if board_size == 9:
+                time_control_minutes = 10
+            elif board_size == 13:
+                time_control_minutes = 20
+            elif board_size == 19:
+                time_control_minutes = 30
+            else:
+                # Fallback an toàn nếu sau này có board_size khác
+                time_control_minutes = 10
+
+            # Create match với board_size đã validate, room_code và thời gian phù hợp
             match = match_model.Match(
                 black_player_id=black_user.id,
                 white_player_id=white_user.id,
                 board_size=board_size,  # Sử dụng board_size từ parameter (đã validate)
                 room_code=room_code,  # Thêm room_code cho matchmaking matches
-                time_control_minutes=10,  # Default 10 minutes per player
-                black_time_remaining_seconds=10 * 60,  # 10 minutes in seconds
-                white_time_remaining_seconds=10 * 60,  # 10 minutes in seconds
+                time_control_minutes=time_control_minutes,
+                black_time_remaining_seconds=time_control_minutes * 60,
+                white_time_remaining_seconds=time_control_minutes * 60,
                 last_move_at=datetime.now(timezone.utc),
                 black_ready=False,  # Chưa ready - cần cả 2 người chơi xác nhận
                 white_ready=False,  # Chưa ready - cần cả 2 người chơi xác nhận
