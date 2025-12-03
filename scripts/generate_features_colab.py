@@ -10,7 +10,8 @@ Features bao gồm:
 
 import numpy as np
 import torch
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Union
+import numpy as np
 
 
 def get_liberties_simple(board_state: np.ndarray, x: int, y: int, board_size: int) -> int:
@@ -111,25 +112,56 @@ def board_to_features_17_planes(
 
 
 def generate_policy_label(
-    move: Tuple[int, int],
+    move: Optional[Tuple[int, int]],
     board_size: int
 ) -> torch.Tensor:
     """
     Generate policy label từ move.
     
     Args:
-        move: (x, y) tuple
+        move: (x, y) tuple hoặc None cho pass move, hoặc (-1, -1) cho pass
         board_size: Kích thước bàn cờ
     
     Returns:
-        Tensor [board_size * board_size] với one-hot tại move position
-    """
-    x, y = move
-    policy = torch.zeros(board_size * board_size, dtype=torch.float32)
+        Tensor [board_size * board_size + 1] với one-hot tại move position
+        Index cuối cùng (board_size * board_size) dành cho pass move
     
+    Raises:
+        ValueError: Nếu move không hợp lệ (ngoài board và không phải pass)
+    """
+    # Policy vector: board positions + 1 pass move
+    policy = torch.zeros(board_size * board_size + 1, dtype=torch.float32)
+    
+    # Handle pass moves
+    if move is None or move == (-1, -1) or (isinstance(move, tuple) and len(move) == 2 and move[0] == -1 and move[1] == -1):
+        # Pass move → index cuối cùng
+        policy[-1] = 1.0
+        return policy
+    
+    # Validate move format
+    if not isinstance(move, (tuple, list)) or len(move) != 2:
+        raise ValueError(f"Invalid move format: {move}. Expected (x, y) tuple or None for pass.")
+    
+    x, y = move
+    
+    # Validate coordinates
+    if not isinstance(x, (int, np.integer)) or not isinstance(y, (int, np.integer)):
+        raise ValueError(f"Move coordinates must be integers: got ({type(x).__name__}, {type(y).__name__})")
+    
+    # Check if valid board position
     if 0 <= x < board_size and 0 <= y < board_size:
         idx = y * board_size + x
         policy[idx] = 1.0
+    else:
+        # Invalid coordinates (outside board) → treat as pass
+        # Log warning but don't crash
+        import warnings
+        warnings.warn(
+            f"Move ({x}, {y}) is outside board size {board_size}. "
+            f"Treating as pass move.",
+            UserWarning
+        )
+        policy[-1] = 1.0
     
     return policy
 
@@ -140,22 +172,58 @@ def generate_value_label(
     game_result: Optional[str] = None
 ) -> float:
     """
-    Generate value label (win probability).
+    Generate value label (win probability) với validation chặt chẽ.
     
     Args:
         winner: 'B', 'W', 'DRAW', hoặc None
-        current_player: 'B' hoặc 'W'
+        current_player: 'B' hoặc 'W' (phải khớp với người chơi ở position)
         game_result: String như "B+12.5" (optional, để tính chính xác hơn)
     
     Returns:
         float: 0.0 - 1.0 (1.0 = current player wins, 0.5 = draw hoặc unknown)
+    
+    Raises:
+        ValueError: Nếu current_player không hợp lệ
     """
+    # Validate current_player
+    if current_player not in ('B', 'W', 'b', 'w'):
+        raise ValueError(
+            f"Invalid current_player: '{current_player}'. "
+            f"Must be 'B', 'W', 'b', or 'w'."
+        )
+    
+    # Normalize to uppercase
+    current_player = current_player.upper()
+    
+    # Handle None winner
     if winner is None:
         return 0.5  # Unknown result
     
-    if winner == 'DRAW':
+    # Normalize winner
+    if isinstance(winner, str):
+        winner = winner.upper()
+    
+    # Handle DRAW
+    if winner == 'DRAW' or winner == '0':
         return 0.5  # Draw game - both players get 0.5
     
+    # Validate winner format
+    if winner not in ('B', 'W'):
+        # Try to parse from game_result if provided
+        if game_result:
+            game_result_upper = str(game_result).upper().strip()
+            if game_result_upper.startswith('B+') or game_result_upper == 'B':
+                winner = 'B'
+            elif game_result_upper.startswith('W+') or game_result_upper == 'W':
+                winner = 'W'
+            else:
+                # Cannot determine winner
+                return 0.5
+        else:
+            # Invalid winner format and no game_result
+            return 0.5
+    
+    # Calculate value: 1.0 if current player wins, 0.0 otherwise
     if winner == current_player:
         return 1.0
     else:
@@ -185,7 +253,18 @@ if __name__ == "__main__":
     print(f"Policy shape: {policy.shape}")
     print(f"Policy at (4,4): {policy[4 * board_size + 4]}")
     
+    # Test pass move
+    policy_pass = generate_policy_label(None, board_size)
+    print(f"Policy pass shape: {policy_pass.shape}")
+    print(f"Policy pass (last index): {policy_pass[-1]}")
+    
     # Test value label
     value = generate_value_label('B', 'B')
     print(f"Value (Black wins, Black to move): {value}")
+    
+    # Test value label with validation
+    try:
+        value_invalid = generate_value_label('B', 'X')  # Should raise ValueError
+    except ValueError as e:
+        print(f"✅ Caught expected ValueError: {e}")
 

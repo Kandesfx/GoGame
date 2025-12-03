@@ -28,6 +28,8 @@ ENV/
 env.bak/
 venv.bak/
 .venv/
+venv311/
+backend/venv311/
 
 # Environment variables
 .env
@@ -188,4 +190,8 @@ dmypy.json
 *.pt
 data/processed/*.pt
 data/processed/**/*.pt
+
+# Data directory - exclude all data files
+data/
+!data/.gitkeep
 

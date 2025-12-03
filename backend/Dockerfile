@@ -13,16 +13,19 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install pybind11
-RUN pip install --no-cache-dir pybind11
+# Install pybind11 (cả pip và cmake package)
+RUN pip install --no-cache-dir pybind11 && \
+    python3 -c "import pybind11; print('pybind11 installed at:', pybind11.get_cmake_dir())"
 
 # Copy source code (build context là root directory)
 COPY CMakeLists.txt ./
 COPY src ./src
 
 # Build C++ module
+# Set pybind11_DIR để CMake tìm được
 RUN mkdir -p build && cd build && \
-    cmake .. && \
+    PYBIND11_DIR=$(python3 -c "import pybind11; print(pybind11.get_cmake_dir())") && \
+    cmake .. -Dpybind11_DIR="$PYBIND11_DIR" && \
     cmake --build . --target gogame_py
 
 # Stage 2: Python backend
@@ -38,7 +41,9 @@ RUN apt-get update && apt-get install -y \
 
 # Copy requirements first (for better caching)
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Upgrade pip, setuptools, wheel for better compatibility with Pydantic v2
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy C++ module from builder stage
 COPY --from=builder /build/build/gogame_py*.so /app/
@@ -52,6 +57,7 @@ COPY backend/__init__.py ./
 COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./
+COPY backend/scripts ./scripts
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

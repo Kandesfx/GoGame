@@ -99,18 +99,36 @@ class AuthService:
         return {"access_token": access_jwt, "refresh_token": refresh_jwt}
 
     def refresh(self, refresh_token: str) -> Dict[str, str]:
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             payload = security.decode_refresh_token(refresh_token, self.settings)
+        except jwt.ExpiredSignatureError as exc:
+            logger.warning(f"❌ [AUTH] Refresh token expired: {exc}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired") from exc
+        except jwt.InvalidTokenError as exc:
+            logger.warning(f"❌ [AUTH] Invalid refresh token format: {exc}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token") from exc
         except jwt.PyJWTError as exc:
+            logger.warning(f"❌ [AUTH] JWT error during refresh: {exc}")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token") from exc
 
         token_id = payload.get("jti")
         if not token_id:
+            logger.warning(f"❌ [AUTH] Refresh token missing jti claim")
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
         db_token = self.db.query(refresh_token_model.RefreshToken).filter_by(id=token_id, revoked=False).first()
-        if not db_token or db_token.token != refresh_token:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
+        if not db_token:
+            logger.warning(f"❌ [AUTH] Refresh token not found in database: token_id={token_id}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token not found")
+        
+        if db_token.token != refresh_token:
+            # Token đã được rotate bởi request khác - đây là hành vi bình thường (race condition)
+            # Không phải lỗi nghiêm trọng, chỉ log ở mức INFO
+            logger.info(f"ℹ️ [AUTH] Refresh token was rotated by another request: token_id={token_id}")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked or rotated")
 
         # Extend refresh token expiration khi có activity (sliding session)
         # QUAN TRỌNG: Luôn extend khi có request (không có điều kiện thời gian tối thiểu)

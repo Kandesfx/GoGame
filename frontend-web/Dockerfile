@@ -13,11 +13,23 @@ RUN npm ci
 COPY . .
 
 # Build arguments for Vite (cần lúc build time)
+# Try both ARG and ENV to ensure it's available
 ARG VITE_API_URL
-ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL:-https://gogame-backend.fly.dev}
+
+# Debug: Print build args
+RUN echo "=== Build Args ===" && \
+    echo "VITE_API_URL=$VITE_API_URL" && \
+    echo "=== Environment ===" && \
+    env | grep VITE || echo "No VITE env vars"
 
 # Build application
 RUN npm run build
+
+# Debug: Verify API URL in built files
+RUN echo "=== Checking built files for API URL ===" && \
+    grep -r "localhost:8000" /app/dist 2>/dev/null && echo "⚠️ Found localhost:8000 in build!" || echo "✅ No localhost:8000 found" && \
+    grep -r "gogame-backend.fly.dev" /app/dist 2>/dev/null && echo "✅ Found gogame-backend.fly.dev in build!" || echo "⚠️ gogame-backend.fly.dev not found"
 
 # Verify build output
 RUN echo "=== Build Verification ===" && \

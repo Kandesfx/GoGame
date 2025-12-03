@@ -1,0 +1,94 @@
+.premium-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
+  white-space: nowrap;
+}
+
+.premium-badge-inactive {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.premium-badge-inactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.premium-badge-active {
+  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 50%, #ff8c00 100%);
+  color: #8b6914;
+  box-shadow: 0 2px 12px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3);
+  animation: premium-glow 2s ease-in-out infinite;
+  border: 2px solid rgba(255, 215, 0, 0.5);
+  font-weight: 700;
+}
+
+.premium-badge-active:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.6), 0 0 30px rgba(255, 215, 0, 0.4);
+}
+
+.premium-text-active {
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.premium-icon-active {
+  color: #ff8c00;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  animation: crown-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes crown-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.premium-checkmark {
+  background: rgba(139, 105, 20, 0.2);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+@keyframes premium-glow {
+  0%, 100% {
+    box-shadow: 0 2px 12px rgba(255, 215, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 2px 16px rgba(255, 215, 0, 0.7), 0 0 30px rgba(255, 215, 0, 0.5);
+  }
+}
+
+.premium-icon {
+  font-size: 16px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+}
+
+.premium-days-left {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+

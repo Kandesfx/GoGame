@@ -30,6 +30,14 @@ import time
 import gc
 from typing import Optional, List, Dict, Tuple
 
+# Multiprocessing for Colab Pro
+try:
+    from multiprocessing import Pool, cpu_count
+    MULTIPROCESSING_AVAILABLE = True
+except ImportError:
+    MULTIPROCESSING_AVAILABLE = False
+    cpu_count = lambda: 1
+
 # Import features
 try:
     from generate_features_colab import (
@@ -47,6 +55,25 @@ except ImportError:
         generate_value_label
     )
 
+# Import label generators cho Multi-task Model
+try:
+    from label_generators import (
+        ThreatLabelGenerator,
+        AttackLabelGenerator,
+        IntentLabelGenerator,
+        EvaluationLabelGenerator
+    )
+except ImportError:
+    # Nếu chưa có, thử import từ thư mục hiện tại
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from label_generators import (
+        ThreatLabelGenerator,
+        AttackLabelGenerator,
+        IntentLabelGenerator,
+        EvaluationLabelGenerator
+    )
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -59,7 +86,45 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def process_single_position_optimized(
+    pos: Dict, 
+    board_size: int, 
+    move_history: List = None,
+    threat_gen: Optional[ThreatLabelGenerator] = None,
+    attack_gen: Optional[AttackLabelGenerator] = None,
+    intent_gen: Optional[IntentLabelGenerator] = None,
+    eval_gen: Optional[EvaluationLabelGenerator] = None
+) -> Tuple[Optional[Dict], Optional[Dict]]:
+    """
+    Process một position với reused generators (tối ưu memory và speed).
+    """
+    # Tạo generators nếu chưa có (backward compatibility)
+    if threat_gen is None:
+        threat_gen = ThreatLabelGenerator(board_size)
+    if attack_gen is None:
+        attack_gen = AttackLabelGenerator(board_size)
+    if intent_gen is None:
+        intent_gen = IntentLabelGenerator(board_size)
+    if eval_gen is None:
+        eval_gen = EvaluationLabelGenerator(board_size)
+    
+    return _process_single_position_core(pos, board_size, move_history, threat_gen, attack_gen, intent_gen, eval_gen)
+
+
 def process_single_position(pos: Dict, board_size: int, move_history: List = None) -> Tuple[Optional[Dict], Optional[Dict]]:
+    """Backward compatibility wrapper."""
+    return process_single_position_optimized(pos, board_size, move_history)
+
+
+def _process_single_position_core(
+    pos: Dict, 
+    board_size: int, 
+    move_history: List,
+    threat_gen: ThreatLabelGenerator,
+    attack_gen: AttackLabelGenerator,
+    intent_gen: IntentLabelGenerator,
+    eval_gen: EvaluationLabelGenerator
+) -> Tuple[Optional[Dict], Optional[Dict]]:
     """
     Process một position thành labeled sample.
     
@@ -82,11 +147,14 @@ def process_single_position(pos: Dict, board_size: int, move_history: List = Non
         game_result = pos.get('game_result')
         move_number = pos.get('move_number', 0)
         
-        # Convert numpy board to tensor
+        # Convert numpy board to tensor (tối ưu: tránh copy và type conversion)
         if isinstance(board_state, np.ndarray):
             board_np = board_state
+            # Chỉ convert nếu cần (tránh overhead)
+            if board_np.dtype != np.int8:
+                board_np = board_np.astype(np.int8, copy=False)
         else:
-            board_np = np.array(board_state)
+            board_np = np.array(board_state, dtype=np.int8)
         
         # Validate board size
         if board_np.shape[0] != board_size or board_np.shape[1] != board_size:
@@ -104,22 +172,142 @@ def process_single_position(pos: Dict, board_size: int, move_history: List = Non
             board_size=board_size
         )
         
-        # Generate policy label
-        policy = generate_policy_label(move, board_size)
+        # Validate move format
+        if move is None:
+            # Pass move - OK
+            pass
+        elif isinstance(move, (tuple, list)) and len(move) == 2:
+            # Normal move - validate coordinates
+            mx, my = move
+            if not (0 <= mx < board_size and 0 <= my < board_size):
+                return None, {
+                    'error': f'Move coordinates ({mx}, {my}) out of bounds for board size {board_size}',
+                    'type': 'invalid_move',
+                    'move_number': move_number
+                }
+        else:
+            return None, {
+                'error': f'Invalid move format: {move}. Expected (x, y) tuple or None for pass.',
+                'type': 'invalid_move_format',
+                'move_number': move_number
+            }
         
-        # Generate value label
-        value = generate_value_label(winner, current_player, game_result)
+        # Validate current_player
+        if current_player not in ('B', 'W', 'b', 'w'):
+            return None, {
+                'error': f'Invalid current_player: {current_player}. Must be B or W.',
+                'type': 'invalid_player',
+                'move_number': move_number
+            }
         
-        # Create labeled sample
+        # Normalize current_player
+        current_player = current_player.upper()
+        
+        # Generate Multi-task Model labels (theo tài liệu)
+        # Tối ưu: Tính groups một lần, reuse cho cả threat và attack
+        try:
+            # Tính groups một lần (tốn thời gian nhất)
+            groups = threat_gen.find_groups(board_np)
+            
+            # Validate groups
+            if groups is None:
+                groups = []
+            
+            # Reuse groups cho threat_map
+            threat_map = threat_gen.generate_threat_map(board_np, current_player, groups=groups)
+        except Exception as e:
+            import traceback
+            return None, {
+                'error': f'Threat map generation failed: {str(e)}\n{traceback.format_exc()}',
+                'type': 'threat_map_error',
+                'move_number': move_number
+            }
+        
+        try:
+            # Reuse groups cho attack_map (tối ưu quan trọng - tránh tính lại groups!)
+            attack_map = attack_gen.generate_attack_map(board_np, current_player, groups=groups)
+        except Exception as e:
+            import traceback
+            return None, {
+                'error': f'Attack map generation failed: {str(e)}\n{traceback.format_exc()}',
+                'type': 'attack_map_error',
+                'move_number': move_number
+            }
+        
+        try:
+            intent_label = intent_gen.generate_intent_label(
+                board_np, move, move_history or [], current_player
+            )
+        except Exception as e:
+            return None, {
+                'error': f'Intent label generation failed: {str(e)}',
+                'type': 'intent_label_error',
+                'move_number': move_number
+            }
+        
+        try:
+            evaluation_label = eval_gen.generate_evaluation(
+                board_np, current_player, winner, game_result
+            )
+        except Exception as e:
+            return None, {
+                'error': f'Evaluation label generation failed: {str(e)}',
+                'type': 'evaluation_label_error',
+                'move_number': move_number
+            }
+        
+        # Generate policy/value labels (cho Policy/Value Network - backward compatibility)
+        try:
+            policy = generate_policy_label(move, board_size)
+        except ValueError as e:
+            return None, {
+                'error': f'Policy label generation failed: {str(e)}',
+                'type': 'policy_label_error',
+                'move_number': move_number
+            }
+        
+        try:
+            value = generate_value_label(winner, current_player, game_result)
+        except ValueError as e:
+            return None, {
+                'error': f'Value label generation failed: {str(e)}',
+                'type': 'value_label_error',
+                'move_number': move_number
+            }
+        
+        # Validate value is in valid range
+        if not (0.0 <= value <= 1.0):
+            return None, {
+                'error': f'Invalid value label: {value}. Must be between 0.0 and 1.0.',
+                'type': 'invalid_value',
+                'move_number': move_number
+            }
+        
+        # Create labeled sample theo format tài liệu ML_COMPREHENSIVE_GUIDE.md
         labeled_sample = {
-            'features': features,
-            'policy': policy,
-            'value': value,
+            # Core data
+            'features': features,  # Tensor[17, board_size, board_size]
+            
+            # Labels cho Multi-task Model (theo tài liệu)
+            'labels': {
+                'threat_map': threat_map,  # Tensor[board_size, board_size]
+                'attack_map': attack_map,  # Tensor[board_size, board_size]
+                'intent': intent_label,    # Dict với type, confidence, region
+                'evaluation': evaluation_label  # Dict với win_probability, territory_map, influence_map
+            },
+            
+            # Policy/Value labels (backward compatibility)
+            'policy': policy,  # Tensor[board_size * board_size + 1]
+            'value': value,   # float
+            
+            # Metadata
             'metadata': {
                 'move_number': move_number,
                 'game_result': game_result,
                 'winner': winner,
-                'handicap': pos.get('handicap', 0)
+                'handicap': pos.get('handicap', 0),
+                'board_size': board_size,
+                'current_player': current_player
             }
         }
         
@@ -138,15 +326,73 @@ def process_single_position(pos: Dict, board_size: int, move_history: List = Non
         return None, error_info
 
 
+def process_positions_batch(batch: List[Dict], board_size: int) -> Tuple[List[Dict], List[Dict]]:
+    """
+    Process một batch positions (dùng trong multiprocessing).
+    Tối ưu: Reuse label generators cho toàn bộ batch.
+    
+    Args:
+        batch: List of position dicts từ cùng một game
+        board_size: Board size
+    
+    Returns:
+        (labeled_samples, errors) tuple
+    """
+    labeled_samples = []
+    errors = []
+    move_history = []
+    
+    # REUSE generators cho toàn bộ batch (tối ưu quan trọng!)
+    threat_gen = ThreatLabelGenerator(board_size)
+    attack_gen = AttackLabelGenerator(board_size)
+    intent_gen = IntentLabelGenerator(board_size)
+    eval_gen = EvaluationLabelGenerator(board_size)
+    
+    for pos in batch:
+        # Update move history
+        move_num = pos.get('move_number', 0)
+        if move_num == 0:
+            move_history = []
+        
+        # Process position với reused generators
+        labeled_sample, error_info = process_single_position_optimized(
+            pos, board_size, move_history,
+            threat_gen, attack_gen, intent_gen, eval_gen
+        )
+        
+        if error_info is not None:
+            errors.append(error_info)
+        elif labeled_sample is not None:
+            labeled_samples.append(labeled_sample)
+        
+        # Update move history
+        move = pos.get('move')
+        if move:
+            move_history.append(move)
+            if len(move_history) > 4:
+                move_history = move_history[-4:]
+    
+    return labeled_samples, errors
+
+
+def _process_batch_wrapper(args):
+    """Wrapper function for multiprocessing."""
+    batch, board_size = args
+    return process_positions_batch(batch, board_size)
+
+
 def process_positions_to_labels(
     positions: List[Dict],
     board_size: int,
     save_chunk_size: Optional[int] = None,
     output_dir: Optional[Path] = None,
-    chunk_prefix: str = 'chunk'
+    chunk_prefix: str = 'chunk',
+    num_workers: Optional[int] = None,
+    use_multiprocessing: bool = True
 ) -> Tuple[List[Dict], List[Dict], List[Path]]:
     """
     Convert positions thành labeled data với incremental save.
+    Tối ưu cho Colab Pro với multiprocessing.
     
     Args:
         positions: List of position dicts
@@ -154,6 +400,8 @@ def process_positions_to_labels(
         save_chunk_size: Nếu set, save định kỳ mỗi N samples để giảm memory
         output_dir: Directory để save chunks (nếu dùng incremental save)
         chunk_prefix: Prefix cho chunk files
+        num_workers: Số worker processes (None = auto-detect, Colab Pro thường 4-8)
+        use_multiprocessing: Có dùng multiprocessing không (True = nhanh hơn)
     
     Returns:
         (labeled_data, errors, saved_chunks) tuple
@@ -161,15 +409,6 @@ def process_positions_to_labels(
         - errors: List of error dicts
         - saved_chunks: List of chunk file paths (nếu dùng incremental save)
     """
-    labeled_data = []
-    errors = []
-    saved_chunks = []
-    
-    # Track move history for each game
-    move_history = []
-    last_move_num = -1
-    chunk_counter = 0
-    
     use_incremental_save = save_chunk_size is not None and save_chunk_size > 0
     
     if use_incremental_save and output_dir:
@@ -177,6 +416,164 @@ def process_positions_to_labels(
         output_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"📁 Incremental save enabled: chunks will be saved to {output_dir}")
         logger.info(f"   Chunk size: {save_chunk_size:,} samples (~{save_chunk_size * 50 / 1024:.0f}MB per chunk)")
+    
+    # Default: Single-threaded (1 worker) - tận dụng 50GB RAM với chunk size lớn
+    if num_workers is None:
+        num_workers = 1
+    
+    # Chỉ dùng multiprocessing nếu explicitly enabled và num_workers > 1
+    if use_multiprocessing and MULTIPROCESSING_AVAILABLE and num_workers > 1 and len(positions) > 1000:
+        logger.info(f"🚀 Using multiprocessing with {num_workers} workers")
+        return _process_positions_parallel(
+            positions, board_size, num_workers, save_chunk_size, output_dir, chunk_prefix
+        )
+    
+    # Single-threaded (default) - tối ưu với reused generators và chunk size lớn
+    logger.info("📝 Using single-threaded processing (1 worker, optimized for 50GB RAM)")
+    return _process_positions_single_threaded(
+        positions, board_size, save_chunk_size, output_dir, chunk_prefix
+    )
+
+
+def _process_positions_parallel(
+    positions: List[Dict],
+    board_size: int,
+    num_workers: int,
+    save_chunk_size: Optional[int],
+    output_dir: Optional[Path],
+    chunk_prefix: str
+) -> Tuple[List[Dict], List[Dict], List[Path]]:
+    """Parallel processing với multiprocessing (tối ưu cho Colab Pro)."""
+    labeled_data = []
+    errors = []
+    saved_chunks = []
+    chunk_counter = 0
+    
+    # Group positions by game để maintain move history
+    batches = []
+    current_batch = []
+    last_move_num = -1
+    
+    # Optimal batch size: đủ lớn để giảm overhead, đủ nhỏ để fit memory
+    batch_size = max(500, min(5000, len(positions) // (num_workers * 4)))
+    
+    for pos in positions:
+        move_num = pos.get('move_number', 0)
+        
+        # Start new batch if move_number resets (new game)
+        if move_num < last_move_num:
+            if current_batch:
+                batches.append(current_batch)
+            current_batch = [pos]
+        else:
+            current_batch.append(pos)
+            
+            # Flush batch if too large
+            if len(current_batch) >= batch_size:
+                batches.append(current_batch)
+                current_batch = []
+        
+        last_move_num = move_num
+    
+    if current_batch:
+        batches.append(current_batch)
+    
+    logger.info(f"   Created {len(batches):,} batches (avg size: {len(positions)//len(batches) if batches else 0})")
+    
+    start_time = time.time()
+    
+    # Process in parallel
+    pool = None
+    try:
+        pool = Pool(processes=num_workers)
+        
+        # Use imap_unordered for better performance
+        results = list(tqdm(
+            pool.imap_unordered(
+                _process_batch_wrapper,
+                [(batch, board_size) for batch in batches],
+                chunksize=max(1, len(batches) // (num_workers * 4))
+            ),
+            total=len(batches),
+            desc="Processing batches",
+            unit="batch"
+        ))
+        
+        # Collect results
+        for batch_labeled, batch_errors in results:
+            labeled_data.extend(batch_labeled)
+            errors.extend(batch_errors)
+            
+            # Incremental save nếu cần
+            if save_chunk_size and output_dir and len(labeled_data) >= save_chunk_size:
+                chunk_counter += 1
+                chunk_file = output_dir / f'{chunk_prefix}_{chunk_counter:04d}.pt'
+                
+                logger.info(f"💾 Saving chunk {chunk_counter} ({len(labeled_data):,} samples)")
+                
+                torch.save({
+                    'labeled_data': labeled_data,
+                    'board_size': board_size,
+                    'chunk_num': chunk_counter,
+                    'total_samples': len(labeled_data)
+                }, chunk_file)
+                
+                saved_chunks.append(chunk_file)
+                labeled_data = []
+                gc.collect()
+    
+    except KeyboardInterrupt:
+        logger.warning("⚠️  Interrupted by user")
+        if pool:
+            pool.terminate()
+        raise
+    finally:
+        if pool:
+            pool.close()
+            pool.join()
+    
+    elapsed = time.time() - start_time
+    speed = len(positions) / elapsed if elapsed > 0 else 0
+    logger.info(f"✅ Processed {len(positions):,} positions in {elapsed:.1f}s ({speed:.0f} pos/s)")
+    
+    return labeled_data, errors, saved_chunks
+
+
+def _process_positions_single_threaded(
+    positions: List[Dict],
+    board_size: int,
+    save_chunk_size: Optional[int],
+    output_dir: Optional[Path],
+    chunk_prefix: str
+) -> Tuple[List[Dict], List[Dict], List[Path]]:
+    """Single-threaded processing (optimized for memory and speed)."""
+    labeled_data = []
+    errors = []
+    saved_chunks = []
+    
+    # REUSE label generators (không tạo mới mỗi lần) - Tối ưu quan trọng!
+    threat_gen = ThreatLabelGenerator(board_size)
+    attack_gen = AttackLabelGenerator(board_size)
+    intent_gen = IntentLabelGenerator(board_size)
+    eval_gen = EvaluationLabelGenerator(board_size)
+    
+    # Track move history for each game
+    move_history = []
+    last_move_num = -1
+    chunk_counter = 0
+    
+    # Auto-enable incremental save với chunk size 50K
+    if save_chunk_size is None or save_chunk_size <= 0:
+        save_chunk_size = 50000  # Default: 50K samples (~2.5GB)
+        logger.info(f"💡 Auto-enabling incremental save (chunk_size={save_chunk_size:,})")
+    
+    if output_dir is None:
+        output_dir = Path('/tmp/label_chunks')
+        output_dir.mkdir(parents=True, exist_ok=True)
+        logger.warning(f"⚠️  Using temporary directory: {output_dir}")
+    
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     start_time = time.time()
     last_speed_check_time = start_time
@@ -189,8 +586,11 @@ def process_positions_to_labels(
         if move_num < last_move_num or move_num == 0:
             move_history = []
         
-        # Process position
-        labeled_sample, error_info = process_single_position(pos, board_size, move_history)
+        # Process position với reused generators
+        labeled_sample, error_info = process_single_position_optimized(
+            pos, board_size, move_history, 
+            threat_gen, attack_gen, intent_gen, eval_gen
+        )
         
         if error_info is not None:
             errors.append(error_info)
@@ -202,67 +602,55 @@ def process_positions_to_labels(
         if move:
             move_history.append(move)
             if len(move_history) > 4:
-                move_history = move_history[-4:]  # Keep last 4 only
+                move_history = move_history[-4:]
         
         last_move_num = move_num
         
-        # Incremental save nếu cần
-        if use_incremental_save and output_dir and len(labeled_data) >= save_chunk_size:
+        # Incremental save (bắt buộc)
+        if len(labeled_data) >= save_chunk_size:
             chunk_counter += 1
             chunk_file = output_dir / f'{chunk_prefix}_{chunk_counter:04d}.pt'
             
             logger.info(f"💾 Saving chunk {chunk_counter} ({len(labeled_data):,} samples) to {chunk_file.name}")
             
-            # Save chunk
+            # Save với compression để giảm I/O time
             torch.save({
                 'labeled_data': labeled_data,
                 'board_size': board_size,
                 'chunk_num': chunk_counter,
                 'total_samples': len(labeled_data)
-            }, chunk_file)
+            }, chunk_file, _use_new_zipfile_serialization=True)
             
             saved_chunks.append(chunk_file)
             
-            # Clear memory và force GC
+            # Clear memory ngay lập tức
+            del labeled_data
             labeled_data = []
             gc.collect()
-            
-            logger.info(f"✅ Chunk {chunk_counter} saved. Memory cleared.")
         
-        # Periodic GC và speed check mỗi 10K samples
-        elif len(labeled_data) % 10000 == 0 and len(labeled_data) > 0:
+        # Periodic GC và speed check (mỗi 20K samples để giảm overhead - với 50GB RAM có thể ít hơn)
+        if len(labeled_data) % 20000 == 0 and len(labeled_data) > 0:
             gc.collect()
             
-            # Speed check
             current_time = time.time()
             time_since_last_check = current_time - last_speed_check_time
-            if time_since_last_check >= 30.0:  # Mỗi 30 giây
+            if time_since_last_check >= 30.0:
                 positions_since_last_check = idx + 1 - last_speed_check_positions
                 real_time_speed = positions_since_last_check / time_since_last_check if time_since_last_check > 0 else 0
                 total_elapsed = current_time - start_time
                 avg_speed = (idx + 1) / total_elapsed if total_elapsed > 0 else 0
                 
-                # Estimate memory usage
                 estimated_memory_mb = len(labeled_data) * 50 / 1024
                 
                 logger.info(
-                    f"Speed check - Real-time: {real_time_speed:.0f} pos/s | "
-                    f"Average: {avg_speed:.0f} pos/s | "
-                    f"Samples in memory: {len(labeled_data):,} (~{estimated_memory_mb:.0f}MB) | "
+                    f"Speed: {real_time_speed:.0f} pos/s (avg: {avg_speed:.0f}) | "
+                    f"Memory: ~{estimated_memory_mb:.0f}MB | "
                     f"Progress: {idx+1:,}/{len(positions):,} ({(idx+1)/len(positions)*100:.1f}%)"
                 )
-                
-                # Memory warning
-                if estimated_memory_mb > 3000:  # > 3GB
-                    logger.warning(
-                        f"⚠️  High memory usage: ~{estimated_memory_mb:.0f}MB. "
-                        f"Consider enabling incremental save (save_chunk_size=50000)."
-                    )
                 
                 last_speed_check_time = current_time
                 last_speed_check_positions = idx + 1
     
-    # Final GC
     gc.collect()
     
     return labeled_data, errors, saved_chunks
@@ -339,7 +727,8 @@ def merge_chunks(chunk_files: List[Path], output_path: Path) -> int:
         'total': total_samples,
         'metadata': {
             'merged_from_chunks': len(chunk_files),
-            'chunk_files': [str(f) for f in chunk_files]
+            'chunk_files': [str(f) for f in chunk_files],
+            'date_processed': datetime.now().isoformat()
         }
     }
     
@@ -361,7 +750,9 @@ def process_dataset_file(
     filter_handicap: bool = True,
     save_chunk_size: Optional[int] = None,
     auto_enable_incremental: bool = True,
-    skip_merge: bool = False  # Nếu True, giữ chunks riêng, không merge
+    skip_merge: bool = False,  # Nếu True, giữ chunks riêng, không merge
+    num_workers: Optional[int] = None,  # Số workers (None = 1, single-threaded)
+    use_multiprocessing: bool = False  # Default False - single-threaded với 1 worker
 ):
     """
     Process một file positions và generate labels.
@@ -402,18 +793,21 @@ def process_dataset_file(
                 f"handicap positions"
             )
     
-    # Auto-enable incremental save nếu estimated memory > 4GB
+    # Auto-calculate chunk size dựa trên memory
+    # Default: 50K samples (~2.5GB)
     estimated_memory_mb = len(positions) * 50 / 1024
-    if auto_enable_incremental and save_chunk_size is None and estimated_memory_mb > 4000:
-        save_chunk_size = 50000  # Save mỗi 50K samples (~1.2GB)
+    if save_chunk_size is None or save_chunk_size <= 0:
+        # Default chunk size: 50K samples
+        save_chunk_size = 50000  # 50K samples (~2.5GB)
+        
         logger.info(
             f"💡 Auto-enabling incremental save (chunk size: {save_chunk_size:,}) "
-            f"to prevent MemoryError (estimated: ~{estimated_memory_mb:.0f}MB)"
+            f"(estimated: ~{estimated_memory_mb:.0f}MB)"
         )
     elif estimated_memory_mb > 2000:
-        logger.warning(
-            f"⚠️  WARNING: Estimated memory usage: ~{estimated_memory_mb:.0f}MB. "
-            f"Consider enabling incremental save (save_chunk_size=50000) to avoid RAM issues."
+        logger.info(
+            f"📊 Estimated memory usage: ~{estimated_memory_mb:.0f}MB. "
+            f"Incremental save enabled with chunk_size={save_chunk_size:,}"
         )
     
     # Setup output directory cho chunks
@@ -421,13 +815,15 @@ def process_dataset_file(
     output_dir = output_path_obj.parent
     chunks_dir = output_dir / f'{output_path_obj.stem}_chunks'
     
-    # Generate labels
+    # Generate labels với multiprocessing (Colab Pro optimized)
     labeled_data, errors, saved_chunks = process_positions_to_labels(
         positions,
         board_size,
         save_chunk_size=save_chunk_size,
         output_dir=chunks_dir if save_chunk_size else None,
-        chunk_prefix=output_path_obj.stem
+        chunk_prefix=output_path_obj.stem,
+        num_workers=num_workers,
+        use_multiprocessing=use_multiprocessing
     )
     
     # Nếu dùng incremental save, merge chunks
@@ -466,7 +862,9 @@ def process_dataset_file(
             'year': year,
             'metadata': {
                 'filtered_handicap': filter_handicap,
-                'input_file': str(input_path)
+                'input_file': str(input_path),
+                'errors': len(errors),
+                'date_processed': datetime.now().isoformat()
             }
         }, output_path_obj)
         
@@ -512,10 +910,12 @@ if __name__ == "__main__":
     
     WORK_DIR = Path('/content/drive/MyDrive/GoGame_ML')
     
-    # Process một năm
+    # Process một năm (Colab Pro optimized)
     process_dataset_file(
         input_path=WORK_DIR / 'processed' / 'positions_19x19_2019.pt',
         output_path=WORK_DIR / 'datasets' / 'labeled_19x19_2019.pt',
         filter_handicap=True,
-        save_chunk_size=50000  # Save mỗi 50K samples
+        save_chunk_size=50000,  # Save mỗi 50K samples
+        num_workers=None,  # Auto-detect (Colab Pro: 4-8 workers)
+        use_multiprocessing=True  # Enable multiprocessing
     )

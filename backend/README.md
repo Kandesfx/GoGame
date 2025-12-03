@@ -19,6 +19,27 @@ FastAPI backend cho ứng dụng chơi Cờ Vây với AI.
 
 ## Cài đặt
 
+### ⚡ Quick Start (Khuyến nghị)
+
+**Windows:**
+```bash
+cd backend
+setup.bat    # Setup môi trường
+run.bat      # Chạy server
+```
+
+**Linux/Mac:**
+```bash
+cd backend
+chmod +x setup.sh run.sh
+./setup.sh   # Setup môi trường
+./run.sh     # Chạy server
+```
+
+Xem [QUICK_START.md](QUICK_START.md) để biết chi tiết.
+
+### 📝 Setup Thủ Công
+
 ### 1. Tạo virtual environment
 
 ```bash

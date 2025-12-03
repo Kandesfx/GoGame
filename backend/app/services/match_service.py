@@ -7,9 +7,16 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 
+# Initialize flags
+_GOGAME_PY_DIRECT = False
+_GOGAME_PY_WRAPPER = False
+go = None  # type: ignore
+_wrapper_select_move = None  # type: ignore
+
 try:
     import gogame_py as go
     _GOGAME_PY_DIRECT = True
+    logging.info("✅ gogame_py module loaded successfully")
 except ImportError:
     go = None  # type: ignore
     _GOGAME_PY_DIRECT = False
@@ -18,6 +25,7 @@ except ImportError:
     try:
         from ..utils.ai_wrapper import call_ai_select_move as _wrapper_select_move
         _GOGAME_PY_WRAPPER = True
+        logging.info("✅ AI wrapper loaded successfully")
     except ImportError:
         _GOGAME_PY_WRAPPER = False
         logging.warning("AI wrapper not available either.")
@@ -1390,7 +1398,7 @@ class MatchService:
                     x, y = move_doc["position"]
                     move = go.Move(x, y, color)
                 else:
-                    move = go.Move.Pass(color)
+                    move = go.Move.pass_move(color)
                 
                 if board.is_legal_move(move):
                     board.make_move(move)
@@ -2235,7 +2243,7 @@ class MatchService:
 
         board = await self._get_or_create_board(match)
         go_color = go.Color.Black if color == "B" else go.Color.White
-        pass_move = go.Move.Pass(go_color)
+        pass_move = go.Move.pass_move(go_color)
         
         if not board.is_legal_move(pass_move):
             raise ValueError("Invalid pass move")

@@ -62,7 +62,7 @@ def create_app() -> FastAPI:
             raise
 
     # CORS: Always enable for development, or use configured origins
-    cors_origins = [str(origin) for origin in settings.cors_origins] if settings.cors_origins else ["*"]
+    cors_origins = [str(origin).rstrip('/') for origin in settings.cors_origins_list] if settings.cors_origins_list else ["*"]
     
     # Log CORS settings
     allowed_origins = cors_origins if cors_origins != ["*"] else ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080"]
@@ -75,6 +75,63 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Exception handler để đảm bảo CORS headers được thêm vào error responses
+    from fastapi.responses import JSONResponse
+    from fastapi.exceptions import RequestValidationError
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request, exc):
+        """Global exception handler để đảm bảo CORS headers trong error responses."""
+        import traceback
+        logger.error(f"❌ Unhandled exception: {exc}", exc_info=True)
+        
+        # Tạo response với CORS headers
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
+        
+        # Thêm CORS headers manually
+        origin = request.headers.get("origin")
+        if origin and origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
+    
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(request, exc):
+        """HTTP exception handler với CORS headers."""
+        response = JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+        )
+        
+        # Thêm CORS headers
+        origin = request.headers.get("origin")
+        if origin and origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
+    
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request, exc):
+        """Validation exception handler với CORS headers."""
+        response = JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()},
+        )
+        
+        # Thêm CORS headers
+        origin = request.headers.get("origin")
+        if origin and origin in allowed_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        
+        return response
 
     # Đăng ký routers
     app.include_router(health.router)

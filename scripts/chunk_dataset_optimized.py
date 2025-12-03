@@ -1,8 +1,9 @@
 import torch
 from torch.utils.data import Dataset
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import gc
+from tqdm import tqdm
 
 
 class ChunkDataset(Dataset):
@@ -35,15 +36,15 @@ class ChunkDataset(Dataset):
         del tmp
         gc.collect()
 
-        # --- Precompute sizes WITHOUT loading data ---
+        # --- Load sizes từ chunks (không scan, chỉ load khi cần) ---
         self._chunk_sizes = []
         self._chunk_offsets = [0]
 
-        print("🔍 Scanning chunk sizes (without loading data)...")
+        print("📊 Loading chunk sizes...")
         total = 0
-        for f in self.chunk_files:
+        for f in tqdm(self.chunk_files, desc="Loading chunk metadata", unit="file", leave=False):
             meta = torch.load(f, map_location='cpu', mmap=True)
-            size = len(meta['labeled_data'])   # lightweight
+            size = len(meta['labeled_data'])
             total += size
             self._chunk_sizes.append(size)
             self._chunk_offsets.append(total)
@@ -129,11 +130,38 @@ class ChunkDataset(Dataset):
             gc.collect()
 
 
-def create_chunk_dataset(chunks_dir: str, augment: bool = True):
+def create_chunk_dataset(chunks_dir: str, augment: bool = True, pattern: str = None):
+    """
+    Tạo ChunkDataset từ directory chứa chunks.
+    
+    Args:
+        chunks_dir: Directory chứa chunk files
+        augment: Có apply data augmentation không
+        pattern: Glob pattern để tìm files (mặc định: "*.pt")
+                 Ví dụ: "labeled_19x19_*_*.pt" hoặc "chunk_*.pt"
+    """
     chunks_dir = Path(chunks_dir)
-    chunk_files = sorted(chunks_dir.glob("*.pt"))
-
+    
+    # Nếu không có pattern, tìm tất cả .pt files
+    if pattern is None:
+        # Tự động detect pattern: ưu tiên labeled_*_*.pt, sau đó chunk_*.pt, cuối cùng *.pt
+        labeled_pattern = sorted(chunks_dir.glob("labeled_*_*.pt"))
+        chunk_pattern = sorted(chunks_dir.glob("chunk_*.pt"))
+        all_pt = sorted(chunks_dir.glob("*.pt"))
+        
+        if labeled_pattern:
+            chunk_files = labeled_pattern
+            print(f"📦 Detected pattern: labeled_*_*.pt ({len(chunk_files)} files)")
+        elif chunk_pattern:
+            chunk_files = chunk_pattern
+            print(f"📦 Detected pattern: chunk_*.pt ({len(chunk_files)} files)")
+        else:
+            chunk_files = all_pt
+            print(f"📦 Using all .pt files ({len(chunk_files)} files)")
+    else:
+        chunk_files = sorted(chunks_dir.glob(pattern))
+    
     if not chunk_files:
-        raise ValueError(f"No chunk files found in {chunks_dir}")
+        raise ValueError(f"No chunk files found in {chunks_dir} with pattern '{pattern or '*.pt'}'")
 
     return ChunkDataset(chunk_files, augment=augment)

@@ -3,6 +3,11 @@ import { useAuth } from '../contexts/AuthContext'
 import { FaCog, FaSignOutAlt, FaGamepad, FaUser, FaHistory, FaInfoCircle, FaTimes, FaTrophy } from 'react-icons/fa'
 import api from '../services/api'
 import MatchDialog from './MatchDialog'
+import CoinDisplay from './CoinDisplay'
+import PremiumBadge from './PremiumBadge'
+import ShopDialog from './ShopDialog'
+import PremiumDialog from './PremiumDialog'
+import TransactionHistory from './TransactionHistory'
 
 // Force reload v3
 console.log('🏠 HomePage.jsx loaded - version 3')
@@ -34,6 +39,9 @@ const HomePage = ({ onStartMatch }) => {
   const [hasCheckedTutorial, setHasCheckedTutorial] = useState(false)
   const [topPlayers, setTopPlayers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [showShopDialog, setShowShopDialog] = useState(false)
+  const [showPremiumDialog, setShowPremiumDialog] = useState(false)
+  const [showTransactionHistory, setShowTransactionHistory] = useState(false)
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('goGameSettings')
     return saved ? JSON.parse(saved) : {
@@ -237,22 +245,40 @@ const HomePage = ({ onStartMatch }) => {
         </div>
       </div>
 
-      {/* Top Right - Settings & Logout */}
+      {/* Top Right - Coins, Premium, Settings & Logout */}
       <div className="corner-panel top-right">
-        <button 
-          className="corner-btn"
-          onClick={() => setShowSettingsDialog(true)}
-          title="Cài đặt"
-        >
-          <FaCog />
-        </button>
-        <button 
-          className="corner-btn"
-          onClick={handleLogout}
-          title="Đăng xuất"
-        >
-          <FaSignOutAlt />
-        </button>
+        <div className="top-right-content">
+          <CoinDisplay 
+            onShopClick={() => setShowShopDialog(true)}
+            showShopButton={true}
+          />
+          <PremiumBadge 
+            onPremiumClick={() => setShowPremiumDialog(true)}
+            showButton={true}
+          />
+          <div className="top-right-divider"></div>
+          <button 
+            className="corner-btn"
+            onClick={() => setShowTransactionHistory(true)}
+            title="Lịch sử giao dịch"
+          >
+            <FaHistory />
+          </button>
+          <button 
+            className="corner-btn"
+            onClick={() => setShowSettingsDialog(true)}
+            title="Cài đặt"
+          >
+            <FaCog />
+          </button>
+          <button 
+            className="corner-btn"
+            onClick={handleLogout}
+            title="Đăng xuất"
+          >
+            <FaSignOutAlt />
+          </button>
+        </div>
       </div>
 
       {/* Middle Left - Leaderboard Preview (below user info) */}
@@ -414,6 +440,30 @@ const HomePage = ({ onStartMatch }) => {
       <Leaderboard 
         isOpen={showLeaderboard}
         onClose={() => setShowLeaderboard(false)}
+      />
+
+      {/* Shop Dialog */}
+      <ShopDialog
+        isOpen={showShopDialog}
+        onClose={() => setShowShopDialog(false)}
+        onPurchaseSuccess={() => {
+          // Refresh balance sẽ tự động trong CoinDisplay
+        }}
+      />
+
+      {/* Premium Dialog */}
+      <PremiumDialog
+        isOpen={showPremiumDialog}
+        onClose={() => setShowPremiumDialog(false)}
+        onSubscribeSuccess={() => {
+          // Refresh sẽ tự động trong PremiumBadge
+        }}
+      />
+
+      {/* Transaction History Dialog */}
+      <TransactionHistory
+        isOpen={showTransactionHistory}
+        onClose={() => setShowTransactionHistory(false)}
       />
     </div>
   )

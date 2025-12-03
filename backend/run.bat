@@ -25,17 +25,43 @@ if exist "venv\Scripts\activate.bat" (
     echo Activating virtual environment...
     call venv\Scripts\activate.bat
 ) else (
-    echo Warning: Virtual environment not found.
-    echo You may need to create it: python -m venv venv
+    echo ERROR: Virtual environment not found!
     echo.
+    echo Please run setup.bat first to create virtual environment.
+    echo Or create it manually: python -m venv venv
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Check if uvicorn is installed
+python -c "import uvicorn" >nul 2>&1
+if errorlevel 1 (
+    echo WARNING: uvicorn is not installed!
+    echo Installing dependencies...
+    pip install -r requirements.txt
+    if errorlevel 1 (
+        echo ERROR: Failed to install dependencies!
+        pause
+        exit /b 1
+    )
 )
 
 REM Check if .env exists
 if not exist ".env" (
-    echo Warning: .env file not found!
-    echo Please copy env.example to .env and configure it.
+    echo WARNING: .env file not found!
     echo.
-    pause
+    if exist "env.example" (
+        echo Creating .env from env.example...
+        copy env.example .env >nul
+        echo Please edit .env file and configure your settings.
+        echo.
+        pause
+    ) else (
+        echo Please create .env file manually.
+        echo.
+        pause
+    )
 )
 
 echo Starting FastAPI server...
@@ -46,7 +72,7 @@ echo.
 echo Press Ctrl+C to stop the server
 echo.
 
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 pause
 

@@ -6,7 +6,7 @@ from collections.abc import Generator
 from typing import AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from .config import get_settings
@@ -18,18 +18,98 @@ logging.getLogger('sqlalchemy.dialects').setLevel(logging.WARNING)
 
 settings = get_settings()
 
-# SQLAlchemy setup - tắt echo vì đã cấu hình logging riêng
-engine = create_engine(settings.postgres_dsn, echo=False, future=True, pool_pre_ping=True)
+logger = logging.getLogger(__name__)
+
+# SQLAlchemy setup với connection timeout và better error handling
+# connect_args: thêm connect_timeout để tránh hang quá lâu
+# pool_pre_ping: test connection trước khi dùng
+# pool_recycle: recycle connections sau 1 giờ để tránh stale connections
+try:
+    engine = create_engine(
+        settings.postgres_dsn,
+        echo=False,
+        future=True,
+        pool_pre_ping=True,  # Test connection trước khi dùng
+        pool_recycle=3600,  # Recycle connections sau 1 giờ
+        connect_args={
+            "connect_timeout": 5,  # 5 seconds timeout khi connect
+        },
+    )
+    logger.info(f"✅ [POSTGRES] Engine created with DSN: {settings.postgres_dsn.split('@')[0]}@***")
+except Exception as e:
+    logger.error(f"❌ [POSTGRES] Failed to create engine: {e}")
+    raise
+
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False, expire_on_commit=False, class_=Session)
 Base = declarative_base()
 
 
 def get_db() -> Generator[Session, None, None]:
-    """Dependency Sync DB session cho FastAPI."""
-
+    """Dependency Sync DB session cho FastAPI.
+    
+    Raises HTTPException với message rõ ràng nếu không thể kết nối database.
+    """
+    from fastapi import HTTPException, status
+    
     session = SessionLocal()
     try:
+        # Test connection bằng cách execute một query đơn giản
+        # Nếu fail, sẽ raise exception với message rõ ràng
+        session.execute(text("SELECT 1"))
         yield session
+    except Exception as e:
+        session.rollback()
+        error_msg = str(e)
+        
+        # Kiểm tra xem có phải là authentication error không (từ dependencies)
+        # Authentication errors không phải là database errors
+        if any(keyword in error_msg for keyword in ["401", "Invalid token", "Token revoked", "Missing credentials", "Invalid token payload", "User not found"]):
+            # Đây là authentication error, không phải database error
+            # Re-raise để FastAPI xử lý đúng (401 Unauthorized)
+            # Không log như database error
+            raise
+        
+        # Parse error để đưa ra message hữu ích hơn cho database errors
+        if "password authentication failed" in error_msg.lower():
+            logger.error(
+                "❌ [POSTGRES] Password authentication failed. "
+                "Please check your DATABASE_URL or POSTGRES_DSN environment variable. "
+                f"Current DSN: {settings.postgres_dsn.split('@')[0]}@***"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    "Database connection failed: Password authentication failed. "
+                    "Please check your database credentials in DATABASE_URL or POSTGRES_DSN environment variable. "
+                    "See backend/env.example for configuration example."
+                )
+            ) from e
+        elif "connection" in error_msg.lower() and "failed" in error_msg.lower():
+            logger.error(
+                f"❌ [POSTGRES] Connection failed: {error_msg}. "
+                f"DSN: {settings.postgres_dsn.split('@')[0]}@***"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=(
+                    f"Database connection failed: {error_msg}. "
+                    "Please ensure PostgreSQL is running and accessible. "
+                    "Check your DATABASE_URL or POSTGRES_DSN environment variable."
+                )
+            ) from e
+        else:
+            # Chỉ log như database error nếu thực sự là database error
+            # Kiểm tra xem có phải là SQLAlchemy/psycopg error không
+            error_type = type(e).__name__
+            if any(db_error_type in error_type for db_error_type in ["OperationalError", "DatabaseError", "IntegrityError", "ProgrammingError"]):
+                logger.error(f"❌ [POSTGRES] Database error: {error_msg}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=f"Database error: {error_msg}"
+                ) from e
+            else:
+                # Không phải database error, re-raise để xử lý ở layer khác
+                raise
     finally:
         session.close()
 

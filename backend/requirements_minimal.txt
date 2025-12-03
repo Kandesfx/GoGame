@@ -1,0 +1,27 @@
+# Minimal requirements without orjson (for systems without Rust)
+# Use this if requirements.txt fails due to orjson build issues
+
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlalchemy==2.0.30
+alembic==1.13.1
+psycopg[binary]==3.1.19
+motor>=3.5.0
+pymongo>=4.5.0,<5.0.0
+pydantic[email]==2.7.1
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+PyJWT==2.9.0
+argon2-cffi==23.1.0
+passlib[argon2]==1.7.4
+httpx==0.27.0
+pytest==8.2.2
+
+# FastAPI dependencies (without orjson)
+starlette==0.37.2
+typing-extensions>=4.8.0
+fastapi-cli>=0.0.2
+jinja2>=2.11.2
+python-multipart>=0.0.7
+ujson!=4.0.2,!=4.1.0,!=4.2.0,!=4.3.0,!=5.0.0,!=5.1.0,>=4.0.1
+

@@ -129,13 +129,18 @@ def parse_sgf_file(sgf_path):
             if move:
                 color, move_coord = move
                 if move_coord is not None:
-                    # move_coord is (x, y) tuple
+                    # Normal move - move_coord is (x, y) tuple
                     x, y = move_coord
+                    
+                    # Validate move (không được đặt vào ô đã có quân)
+                    if board[y, x] != 0:
+                        # Skip invalid move
+                        continue
                     
                     # Save position BEFORE move
                     positions.append({
                         'board_state': board.copy(),
-                        'move': (x, y),
+                        'move': (x, y),  # Normal move as tuple
                         'current_player': current_player,
                         'move_number': move_number,
                         'board_size': board_size,
@@ -147,7 +152,22 @@ def parse_sgf_file(sgf_path):
                     # Apply move (simplified - không xử lý captures, ko, etc.)
                     board[y, x] = 1 if color == 'b' else 2
                     move_number += 1
-                    current_player = 'W' if current_player == 'B' else 'B'
+                else:
+                    # Pass move - move_coord is None
+                    positions.append({
+                        'board_state': board.copy(),
+                        'move': None,  # Pass move marked as None
+                        'current_player': current_player,
+                        'move_number': move_number,
+                        'board_size': board_size,
+                        'game_result': result,
+                        'winner': winner,
+                        'handicap': handicap
+                    })
+                    move_number += 1
+                    # Không cần apply move cho pass
+                
+                current_player = 'W' if current_player == 'B' else 'B'
         
         return positions
         

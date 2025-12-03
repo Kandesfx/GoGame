@@ -37,6 +37,24 @@ except ImportError:
         generate_value_label
     )
 
+# Import label generators cho Multi-task Model
+try:
+    from label_generators import (
+        ThreatLabelGenerator,
+        AttackLabelGenerator,
+        IntentLabelGenerator,
+        EvaluationLabelGenerator
+    )
+except ImportError:
+    # Nếu chưa có, thử import từ thư mục hiện tại
+    sys.path.insert(0, str(Path(__file__).parent))
+    from label_generators import (
+        ThreatLabelGenerator,
+        AttackLabelGenerator,
+        IntentLabelGenerator,
+        EvaluationLabelGenerator
+    )
+
 # Setup logging with UTF-8 encoding
 import sys
 
@@ -98,6 +116,34 @@ def process_single_position(pos, board_size):
         # Get move history (simplified - từ move_number)
         move_history = []  # Will be handled in batch processing
         
+        # Validate move format
+        if move is None:
+            # Pass move - OK
+            pass
+        elif isinstance(move, (tuple, list)) and len(move) == 2:
+            # Normal move - validate coordinates
+            mx, my = move
+            if not (0 <= mx < board_size and 0 <= my < board_size):
+                return None, {
+                    'error': f'Move coordinates ({mx}, {my}) out of bounds for board size {board_size}',
+                    'type': 'invalid_move'
+                }
+        else:
+            return None, {
+                'error': f'Invalid move format: {move}. Expected (x, y) tuple or None for pass.',
+                'type': 'invalid_move_format'
+            }
+        
+        # Validate current_player
+        if current_player not in ('B', 'W', 'b', 'w'):
+            return None, {
+                'error': f'Invalid current_player: {current_player}. Must be B or W.',
+                'type': 'invalid_player'
+            }
+        
+        # Normalize current_player
+        current_player = current_player.upper()
+        
         # Generate 17-plane features
         features = board_to_features_17_planes(
             board_np,
@@ -106,22 +152,98 @@ def process_single_position(pos, board_size):
             board_size=board_size
         )
         
-        # Generate policy label
-        policy = generate_policy_label(move, board_size)
+        # Initialize label generators
+        threat_gen = ThreatLabelGenerator(board_size)
+        attack_gen = AttackLabelGenerator(board_size)
+        intent_gen = IntentLabelGenerator(board_size)
+        eval_gen = EvaluationLabelGenerator(board_size)
         
-        # Generate value label
-        value = generate_value_label(winner, current_player, game_result)
+        # Generate Multi-task Model labels (theo tài liệu)
+        try:
+            threat_map = threat_gen.generate_threat_map(board_np, current_player)
+        except Exception as e:
+            return None, {
+                'error': f'Threat map generation failed: {str(e)}',
+                'type': 'threat_map_error'
+            }
         
-        # Create labeled sample
+        try:
+            attack_map = attack_gen.generate_attack_map(board_np, current_player)
+        except Exception as e:
+            return None, {
+                'error': f'Attack map generation failed: {str(e)}',
+                'type': 'attack_map_error'
+            }
+        
+        try:
+            intent_label = intent_gen.generate_intent_label(
+                board_np, move, move_history or [], current_player
+            )
+        except Exception as e:
+            return None, {
+                'error': f'Intent label generation failed: {str(e)}',
+                'type': 'intent_label_error'
+            }
+        
+        try:
+            evaluation_label = eval_gen.generate_evaluation(
+                board_np, current_player, winner, game_result
+            )
+        except Exception as e:
+            return None, {
+                'error': f'Evaluation label generation failed: {str(e)}',
+                'type': 'evaluation_label_error'
+            }
+        
+        # Generate policy/value labels (cho Policy/Value Network - backward compatibility)
+        try:
+            policy = generate_policy_label(move, board_size)
+        except ValueError as e:
+            return None, {
+                'error': f'Policy label generation failed: {str(e)}',
+                'type': 'policy_label_error'
+            }
+        
+        try:
+            value = generate_value_label(winner, current_player, game_result)
+        except ValueError as e:
+            return None, {
+                'error': f'Value label generation failed: {str(e)}',
+                'type': 'value_label_error'
+            }
+        
+        # Validate value is in valid range
+        if not (0.0 <= value <= 1.0):
+            return None, {
+                'error': f'Invalid value label: {value}. Must be between 0.0 and 1.0.',
+                'type': 'invalid_value'
+            }
+        
+        # Create labeled sample theo format tài liệu ML_COMPREHENSIVE_GUIDE.md
         labeled_sample = {
-            'features': features,
-            'policy': policy,
-            'value': value,
+            # Core data
+            'features': features,  # Tensor[17, board_size, board_size]
+            
+            # Labels cho Multi-task Model (theo tài liệu)
+            'labels': {
+                'threat_map': threat_map,  # Tensor[board_size, board_size]
+                'attack_map': attack_map,  # Tensor[board_size, board_size]
+                'intent': intent_label,    # Dict với type, confidence, region
+                'evaluation': evaluation_label  # Dict với win_probability, territory_map, influence_map
+            },
+            
+            # Policy/Value labels (backward compatibility)
+            'policy': policy,  # Tensor[board_size * board_size + 1]
+            'value': value,   # float
+            
+            # Metadata
             'metadata': {
                 'move_number': move_number,
                 'game_result': game_result,
                 'winner': winner,
-                'handicap': pos.get('handicap', 0)
+                'handicap': pos.get('handicap', 0),
+                'board_size': board_size,
+                'current_player': current_player
             }
         }
         

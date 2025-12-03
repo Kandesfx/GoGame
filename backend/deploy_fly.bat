@@ -1,12 +1,4 @@
 @echo off
-REM Script để deploy backend lên Fly.io
-REM Chạy từ root directory của project
-
-cd /d "%~dp0\.."
-
-echo 🚀 Deploying backend to Fly.io...
-echo 📁 Build context: %CD%
-echo 📄 Using: fly.toml (root)
-
-fly deploy
-
+REM Deploy backend to Fly.io from root directory
+cd ..
+fly deploy -c backend/fly.toml

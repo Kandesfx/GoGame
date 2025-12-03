@@ -45,6 +45,8 @@ api.interceptors.request.use(
 // Flag để tránh refresh token loop
 let isRefreshing = false
 let failedQueue = []
+let lastRefreshTime = 0 // Timestamp của lần refresh gần nhất
+const MIN_REFRESH_INTERVAL = 5 * 60 * 1000 // Tối thiểu 5 phút giữa các lần refresh
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
@@ -83,25 +85,41 @@ const checkAndRefreshToken = async () => {
     return
   }
   
+  // Tránh refresh quá thường xuyên (tối thiểu 5 phút giữa các lần)
+  const now = Date.now()
+  if (now - lastRefreshTime < MIN_REFRESH_INTERVAL) {
+    return
+  }
+  
   try {
     const decoded = decodeJWT(accessToken)
     if (!decoded || !decoded.exp) {
       return
     }
     
-    // Kiểm tra nếu token còn ít hơn 60 phút (3600 giây) thì refresh
-    // Refresh sớm để tránh gián đoạn game session
-    const now = Math.floor(Date.now() / 1000)
-    const timeUntilExpiry = decoded.exp - now
+    // Chỉ refresh nếu token còn ít hơn 15 phút (900 giây) - giảm từ 60 phút
+    // Tránh refresh quá sớm gây race condition
+    const nowSeconds = Math.floor(now / 1000)
+    const timeUntilExpiry = decoded.exp - nowSeconds
     
-    // Refresh nếu còn ít hơn 60 phút (hoặc đã hết hạn)
-    if (timeUntilExpiry < 3600) {
+    // Chỉ refresh khi thực sự cần (còn < 15 phút hoặc đã hết hạn)
+    if (timeUntilExpiry < 900) {
       console.log(`🔄 Token expires in ${Math.floor(timeUntilExpiry / 60)} minutes - refreshing proactively...`)
       isRefreshing = true
+      lastRefreshTime = now
       
       try {
+        // Lấy refresh token mới nhất từ localStorage (có thể đã được update bởi request khác)
+        const currentRefreshToken = localStorage.getItem('refresh_token')
+        if (!currentRefreshToken || currentRefreshToken !== refreshToken) {
+          // Token đã được update bởi request khác, không cần refresh nữa
+          console.log('🔄 Refresh token already updated by another request, skipping...')
+          isRefreshing = false
+          return
+        }
+        
         const refreshResponse = await axios.post(`${API_URL}/auth/refresh`, {
-          refresh_token: refreshToken
+          refresh_token: currentRefreshToken
         }, {
           headers: {
             'Content-Type': 'application/json'
@@ -121,7 +139,10 @@ const checkAndRefreshToken = async () => {
         console.log('✅ Token refreshed proactively')
       } catch (error) {
         console.error('❌ Proactive token refresh failed:', error)
-        // Không logout ở đây - để reactive refresh handle
+        // Nếu lỗi do token đã bị rotate, không làm gì - để reactive refresh handle
+        if (error.response?.status === 401) {
+          console.log('⚠️ Refresh token may have been rotated, will retry on next 401')
+        }
       } finally {
         isRefreshing = false
       }
@@ -211,9 +232,16 @@ api.interceptors.response.use(
       
       try {
         console.log('🔄 Attempting to refresh access token...')
+        
+        // Lấy refresh token mới nhất từ localStorage (có thể đã được update)
+        const currentRefreshToken = localStorage.getItem('refresh_token')
+        if (!currentRefreshToken) {
+          throw new Error('No refresh token available')
+        }
+        
         // Gọi refresh token endpoint (không dùng api để tránh interceptor loop)
         const refreshResponse = await axios.post(`${API_URL}/auth/refresh`, {
-          refresh_token: refreshToken
+          refresh_token: currentRefreshToken
         }, {
           headers: {
             'Content-Type': 'application/json'
@@ -227,6 +255,9 @@ api.interceptors.response.use(
         if (newRefreshToken) {
           localStorage.setItem('refresh_token', newRefreshToken)
         }
+        
+        // Cập nhật timestamp
+        lastRefreshTime = Date.now()
         
         // Cập nhật API header
         api.defaults.headers.common['Authorization'] = `Bearer ${access_token}`
@@ -249,6 +280,14 @@ api.interceptors.response.use(
         delete api.defaults.headers.common['Authorization']
         isRefreshing = false
         processQueue(refreshError, null)
+        
+        // Dispatch event để AuthContext biết cần clear user state
+        window.dispatchEvent(new CustomEvent('tokenExpired', { 
+          detail: { 
+            reason: refreshError.response?.data?.detail || 'Session expired. Please log in again.' 
+          } 
+        }))
+        
         // Không redirect - để backend kiểm soát session
         return Promise.reject(refreshError)
       }

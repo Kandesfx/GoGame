@@ -9,6 +9,12 @@ import StatisticsPanel from './StatisticsPanel'
 import MatchDialog from './MatchDialog'
 import SettingsDialog from './SettingsDialog'
 import KoDialog from './KoDialog'
+import CoinDisplay from './CoinDisplay'
+import PremiumBadge from './PremiumBadge'
+import ShopDialog from './ShopDialog'
+import PremiumDialog from './PremiumDialog'
+import TransactionHistory from './TransactionHistory'
+import PremiumFeatures from './PremiumFeatures'
 import api from '../services/api'
 import { playStoneSound, resetStoneSoundCounter } from '../utils/sound'
 import './MainWindow.css'
@@ -43,6 +49,7 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const [finalElo, setFinalElo] = useState(null) // ELO cuối trận đấu
   const [eloChange, setEloChange] = useState(null) // ELO change từ trận đấu
   const [gameScoreDetails, setGameScoreDetails] = useState(null) // Chi tiết điểm số: {stonesBlack, stonesWhite, territoryBlack, territoryWhite, komi}
+  const [coinsEarned, setCoinsEarned] = useState(null) // Coins earned từ trận đấu
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('goGameSettings')
@@ -62,6 +69,9 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const [previousKoPosition, setPreviousKoPosition] = useState(null) // Vị trí KO trước đó để detect thay đổi
   const [showOpponentPassDialog, setShowOpponentPassDialog] = useState(false) // Dialog thông báo đối phương bỏ lượt
   const [opponentPassMessage, setOpponentPassMessage] = useState('') // Nội dung thông báo bỏ lượt
+  const [showShopDialog, setShowShopDialog] = useState(false)
+  const [showPremiumDialog, setShowPremiumDialog] = useState(false)
+  const [showTransactionHistory, setShowTransactionHistory] = useState(false)
 
   // Debug: Log dialog state changes
   useEffect(() => {
@@ -367,6 +377,19 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
           console.error('Failed to load final ELO:', err)
         }
       }
+      
+      // Load coin balance để hiển thị coin earned (nếu có)
+      try {
+        const balanceRes = await api.get('/coins/balance')
+        // Tính coin earned dựa trên match result (nếu có logic)
+        // Tạm thời set null, sẽ được tính từ backend hoặc từ transaction history
+        setCoinsEarned(null) // Sẽ được cập nhật nếu backend trả về
+      } catch (err) {
+        console.error('Failed to load coin balance:', err)
+      }
+      
+      // Dispatch event để CoinDisplay tự động cập nhật
+      window.dispatchEvent(new CustomEvent('coinBalanceUpdated'))
       
       // Hiển thị modal game over
       setTimeout(() => {
@@ -1737,6 +1760,18 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
           <FaCircle className="header-icon" />
           <h1>Cờ Vây - 囲碁</h1>
         </div>
+        <div className="header-center">
+          <div className="header-currency-group">
+            <CoinDisplay 
+              onShopClick={() => setShowShopDialog(true)}
+              showShopButton={true}
+            />
+            <PremiumBadge 
+              onPremiumClick={() => setShowPremiumDialog(true)}
+              showButton={true}
+            />
+          </div>
+        </div>
         <div className="header-actions">
           {onBackToHome && (
             <button onClick={onBackToHome} className="btn btn-secondary" title="Về trang chủ">
@@ -1897,12 +1932,29 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             onPass={handlePass}
             onResign={handleResign}
             onUndo={handleUndo}
-            onHint={() => alert('Tính năng gợi ý - sắp ra mắt')}
-            onAnalysis={() => alert('Tính năng phân tích - sắp ra mắt')}
-            onReview={() => alert('Tính năng xem lại - sắp ra mắt')}
             disabled={isProcessing || gameOver}
             undoDisabled={!currentMatch || moveHistory.length === 0}
           />
+          
+          {/* Premium Features */}
+          {currentMatch && (
+            <PremiumFeatures
+              matchId={currentMatch.id}
+              disabled={isProcessing || gameOver}
+              onHintReceived={(hints) => {
+                console.log('Hint received:', hints)
+                // Có thể highlight các vị trí gợi ý trên board
+              }}
+              onAnalysisReceived={(analysis) => {
+                console.log('Analysis received:', analysis)
+                // Hiển thị kết quả phân tích
+              }}
+              onReviewReceived={(review) => {
+                console.log('Review received:', review)
+                // Hiển thị kết quả review
+              }}
+            />
+          )}
         </div>
 
         {/* Center - Board */}
@@ -1979,6 +2031,30 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
           koPosition={koPosition}
         />
       )}
+
+      {/* Shop Dialog */}
+      <ShopDialog
+        isOpen={showShopDialog}
+        onClose={() => setShowShopDialog(false)}
+        onPurchaseSuccess={() => {
+          // Refresh balance sẽ tự động trong CoinDisplay
+        }}
+      />
+
+      {/* Premium Dialog */}
+      <PremiumDialog
+        isOpen={showPremiumDialog}
+        onClose={() => setShowPremiumDialog(false)}
+        onSubscribeSuccess={() => {
+          // Refresh sẽ tự động trong PremiumBadge
+        }}
+      />
+
+      {/* Transaction History Dialog */}
+      <TransactionHistory
+        isOpen={showTransactionHistory}
+        onClose={() => setShowTransactionHistory(false)}
+      />
 
       {/* Opponent Pass Dialog */}
       {showOpponentPassDialog && (
@@ -2103,6 +2179,22 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
                   </div>
                 </div>
               )}
+              
+              {/* Hiển thị coin earned */}
+              <div className="game-over-coins-info">
+                <div className="coins-info-title">💰 Coins Earned</div>
+                <div className="coins-info-content">
+                  <div className="coins-earned-display">
+                    <span className="coins-icon">🪙</span>
+                    <span className="coins-message">
+                      Coins đã được cộng tự động vào tài khoản của bạn!
+                    </span>
+                  </div>
+                  <div className="coins-note">
+                    Kiểm tra số dư coins ở góc trên bên phải màn hình
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="game-over-modal-footer">
               <button 

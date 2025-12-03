@@ -21,20 +21,47 @@ fi
 
 # Check if virtual environment exists
 if [ -f "venv/bin/activate" ]; then
-    echo "Activating virtual environment..."
+    echo "Activating virtual environment (Linux/Mac style)..."
     source venv/bin/activate
+elif [ -f "venv/Scripts/activate" ]; then
+    echo "Activating virtual environment (Windows style)..."
+    source venv/Scripts/activate
 else
-    echo "Warning: Virtual environment not found."
-    echo "You may need to create it: python -m venv venv"
+    echo "ERROR: Virtual environment not found!"
     echo ""
+    echo "Please run ./setup.sh first to create virtual environment."
+    echo "Or create it manually: python3 -m venv venv"
+    echo ""
+    exit 1
+fi
+
+# Check if uvicorn is installed
+python -c "import uvicorn" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "WARNING: uvicorn is not installed!"
+    echo "Installing dependencies..."
+    pip install -r requirements.txt
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Failed to install dependencies!"
+        exit 1
+    fi
 fi
 
 # Check if .env exists
 if [ ! -f ".env" ]; then
-    echo "Warning: .env file not found!"
-    echo "Please copy env.example to .env and configure it."
+    echo "WARNING: .env file not found!"
     echo ""
-    read -p "Press Enter to continue anyway..."
+    if [ -f "env.example" ]; then
+        echo "Creating .env from env.example..."
+        cp env.example .env
+        echo "Please edit .env file and configure your settings."
+        echo ""
+        read -p "Press Enter to continue..."
+    else
+        echo "Please create .env file manually."
+        echo ""
+        read -p "Press Enter to continue anyway..."
+    fi
 fi
 
 echo "Starting FastAPI server..."
@@ -45,5 +72,5 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 

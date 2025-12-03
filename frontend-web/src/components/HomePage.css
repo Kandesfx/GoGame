@@ -74,6 +74,16 @@
   left: 1.5rem;
 }
 
+/* Top Right - Coins, Premium, Settings & Logout */
+.top-right {
+  top: 1.5rem;
+  right: 1.5rem;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* Middle Left - Leaderboard Preview (below user info) */
 .middle-left {
   top: 7rem;
@@ -93,6 +103,71 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  margin-bottom: 12px;
+}
+
+.user-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.user-currency-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(139, 111, 71, 0.3);
+}
+
+.user-currency-section > * {
+  width: 100%;
+}
+
+/* CoinDisplay và PremiumBadge trong user-currency-section */
+.user-currency-section .coin-display {
+  width: auto;
+  align-self: flex-start;
+}
+
+.user-currency-section .premium-badge {
+  width: auto;
+  align-self: flex-start;
+}
+
+/* Top Right - CoinDisplay và PremiumBadge */
+.top-right-content .coin-display {
+  width: auto;
+  margin: 0;
+}
+
+.top-right-content .premium-badge {
+  width: auto;
+  margin: 0;
+}
+
+.transaction-history-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: 8px;
+  background: rgba(139, 111, 71, 0.2);
+  border: 1px solid rgba(139, 111, 71, 0.3);
+  border-radius: 8px;
+  color: var(--color-brown-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+}
+
+.transaction-history-btn:hover {
+  background: rgba(139, 111, 71, 0.3);
+  transform: translateY(-1px);
 }
 
 .user-icon {
@@ -125,15 +200,29 @@
   white-space: nowrap;
 }
 
-/* Top Right - Settings & Logout */
+/* Top Right - Coins, Premium, Settings & Logout */
 .top-right {
   top: 1.5rem;
   right: 1.5rem;
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  max-width: auto;
+  padding: 0.75rem 1rem;
+  max-width: fit-content;
   max-height: auto;
+  display: flex;
+  align-items: center;
+}
+
+.top-right-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.top-right-divider {
+  width: 1px;
+  height: 32px;
+  background: rgba(139, 111, 71, 0.3);
+  margin: 0 4px;
 }
 
 

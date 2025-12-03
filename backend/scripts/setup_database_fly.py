@@ -53,21 +53,27 @@ def setup_database():
     
     sql_content = '\n'.join(lines)
     
-    # Chia thành các statements
+    # Chia thành các statements - parse tốt hơn
     statements = []
     current_statement = []
+    in_multiline = False
     
     for line in sql_content.split('\n'):
         line = line.strip()
+        # Skip empty lines and comments
         if not line or line.startswith('--'):
+            continue
+        
+        # Skip CREATE DATABASE và DROP DATABASE (không cần trên Fly.io)
+        if 'CREATE DATABASE' in line.upper() or 'DROP DATABASE' in line.upper():
             continue
         
         current_statement.append(line)
         
-        # Kết thúc statement khi gặp dấu chấm phẩy
+        # Kết thúc statement khi gặp dấu chấm phẩy (không nằm trong string)
         if line.endswith(';'):
             statement = ' '.join(current_statement)
-            if statement.strip():
+            if statement.strip() and not statement.upper().startswith('CREATE DATABASE'):
                 statements.append(statement)
             current_statement = []
     

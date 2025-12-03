@@ -370,7 +370,7 @@ class PremiumService:
                             x, y = move_doc["position"]
                             move = go.Move(x, y, color)
                         else:
-                            move = go.Move.Pass(color)
+                            move = go.Move.pass_move(color)
 
                         # Evaluate position trước move (với cache)
                         board_hash_before = board.zobrist_hash()

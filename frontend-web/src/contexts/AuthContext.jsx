@@ -59,6 +59,12 @@ export const AuthProvider = ({ children }) => {
       }
     }
     
+    const handleTokenExpired = (e) => {
+      console.log('⏰ Token expired, clearing user state:', e.detail?.reason)
+      setToken(null)
+      setUser(null)
+    }
+    
     const handleStorageChange = (e) => {
       if (e.key === 'access_token') {
         const newToken = localStorage.getItem('access_token')
@@ -74,10 +80,12 @@ export const AuthProvider = ({ children }) => {
     }
     
     window.addEventListener('tokenRefreshed', handleTokenRefreshed)
+    window.addEventListener('tokenExpired', handleTokenExpired)
     window.addEventListener('storage', handleStorageChange)
     
     return () => {
       window.removeEventListener('tokenRefreshed', handleTokenRefreshed)
+      window.removeEventListener('tokenExpired', handleTokenExpired)
       window.removeEventListener('storage', handleStorageChange)
     }
   }, [token])

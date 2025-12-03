@@ -102,11 +102,11 @@ class PaymentService:
         # if not self._verify_payment(payment_token, plan_config["price_usd"]):
         #     raise ValueError("Payment verification failed")
 
-        # Check if user already has active subscription
+        # Check if user already has ANY subscription (active, cancelled, or expired)
+        # QUAN TRỌNG: Check tất cả subscriptions, không chỉ active, để tránh duplicate key
         existing_sub = (
             self.db.query(premium_sub_model.PremiumSubscription)
             .filter(premium_sub_model.PremiumSubscription.user_id == user.id)
-            .filter(premium_sub_model.PremiumSubscription.status == "active")
             .first()
         )
 
