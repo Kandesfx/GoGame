@@ -1,0 +1,11 @@
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/gogame_core.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/gogame_minimax.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/gogame_mcts.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/gogame_ai.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/gogame_py.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/test_board.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/test_minimax.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/test_mcts.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/test.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/edit_cache.dir
+D:/Hai/study/TTNT/GoGame/build/CMakeFiles/rebuild_cache.dir

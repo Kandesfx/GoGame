@@ -1,0 +1,4 @@
+test_board 6 0.0016067
+test_minimax 3 0.00354087
+test_mcts 3 0.120742
+---

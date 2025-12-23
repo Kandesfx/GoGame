@@ -1,0 +1,24 @@
+# ninja log v7
+28	1770	7867563928673151	CMakeFiles/gogame_minimax.dir/src/ai/minimax/transposition_table.cpp.obj	7390f6be03b41d17
+20	970	7867570169288116	CMakeFiles/gogame_minimax.dir/src/ai/minimax/move_ordering.cpp.obj	5a42595fded87901
+32	1699	7867563928714776	CMakeFiles/gogame_minimax.dir/src/ai/minimax/game_tree.cpp.obj	6d00f396617e6901
+35	1962	7867563928754920	CMakeFiles/gogame_minimax.dir/src/ai/minimax/evaluator.cpp.obj	5463ca9a3e334a63
+16	1333	7867570169257280	CMakeFiles/gogame_minimax.dir/src/ai/minimax/minimax_engine.cpp.obj	68ddc8e9ed95ca8e
+1333	1571	7867570182421912	libgogame_minimax.a	ad0a8de86f15247a
+58	2359	7867563928969521	CMakeFiles/gogame_mcts.dir/src/ai/mcts/mcts_node.cpp.obj	79ef49166d90ba2d
+18	2600	7867563928582618	CMakeFiles/gogame_core.dir/src/game/board.cpp.obj	591bdf9480887e1d
+2600	2965	7867563954399681	libgogame_core.a	6ead14e2e0eea111
+39	3427	7867563928785031	CMakeFiles/gogame_mcts.dir/src/ai/mcts/mcts_engine.cpp.obj	607de6ebe339a766
+3427	3606	7867563962666857	libgogame_mcts.a	5336b9ff61c7b308
+25	1621	7867570169330393	CMakeFiles/gogame_ai.dir/src/ai/ai_player.cpp.obj	e89b317883db9b90
+1621	1778	7867570185302065	libgogame_ai.a	68bffdeb5029e258
+59	802	7860426462749991	CMakeFiles/test_board.dir/tests/test_board.cpp.obj	8c67a7d8e03bbe19
+14	999	7867045562928651	CMakeFiles/test_minimax.dir/tests/test_minimax.cpp.obj	a3364ce9f4f1c205
+17	283	7867045562952637	test_board.exe	83cb10162444ac4
+66	1360	7860426462819483	CMakeFiles/test_mcts.dir/tests/test_mcts.cpp.obj	fa778143f70001af
+1602	1803	7867048597185552	test_minimax.exe	2a774bd1d968b3cc
+21	290	7867045562993667	test_mcts.exe	d05e31fe48612e5d
+78	10237	7867563929173335	CMakeFiles/gogame_py.dir/src/bindings/python_bindings.cpp.obj	7da7175949f16b46
+64	1952	7867983378251190	gogame_py.cp312-mingw_x86_64_msvcrt_gnu.pyd	40cf50c77b25d6a4
+28	948	7867570169374047	CMakeFiles/gogame_ai.dir/src/ai/opening_book.cpp.obj	ad1e3d6fb51d092c
+4	44	7867050898110570	clean	4b7a9ec6ee23bafa

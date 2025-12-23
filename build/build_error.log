@@ -1,0 +1,19 @@
+[1/8] Building CXX object CMakeFiles/gogame_minimax.dir/src/ai/minimax/minimax_engine.cpp.obj
+FAILED: [code=1] CMakeFiles/gogame_minimax.dir/src/ai/minimax/minimax_engine.cpp.obj 
+C:\msys64\mingw64\bin\c++.exe  -ID:/Hai/study/TTNT/GoGame/src -ID:/Hai/study/TTNT/GoGame/src/ai -ID:/Hai/study/TTNT/GoGame/src/game -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fPIC -MD -MT CMakeFiles/gogame_minimax.dir/src/ai/minimax/minimax_engine.cpp.obj -MF CMakeFiles\gogame_minimax.dir\src\ai\minimax\minimax_engine.cpp.obj.d -o CMakeFiles/gogame_minimax.dir/src/ai/minimax/minimax_engine.cpp.obj -c D:/Hai/study/TTNT/GoGame/src/ai/minimax/minimax_engine.cpp
+[2/8] Building CXX object CMakeFiles/gogame_minimax.dir/src/ai/minimax/evaluator.cpp.obj
+FAILED: [code=1] CMakeFiles/gogame_minimax.dir/src/ai/minimax/evaluator.cpp.obj 
+C:\msys64\mingw64\bin\c++.exe  -ID:/Hai/study/TTNT/GoGame/src -ID:/Hai/study/TTNT/GoGame/src/ai -ID:/Hai/study/TTNT/GoGame/src/game -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fPIC -MD -MT CMakeFiles/gogame_minimax.dir/src/ai/minimax/evaluator.cpp.obj -MF CMakeFiles\gogame_minimax.dir\src\ai\minimax\evaluator.cpp.obj.d -o CMakeFiles/gogame_minimax.dir/src/ai/minimax/evaluator.cpp.obj -c D:/Hai/study/TTNT/GoGame/src/ai/minimax/evaluator.cpp
+[3/8] Building CXX object CMakeFiles/gogame_minimax.dir/src/ai/minimax/move_ordering.cpp.obj
+FAILED: [code=1] CMakeFiles/gogame_minimax.dir/src/ai/minimax/move_ordering.cpp.obj 
+C:\msys64\mingw64\bin\c++.exe  -ID:/Hai/study/TTNT/GoGame/src -ID:/Hai/study/TTNT/GoGame/src/ai -ID:/Hai/study/TTNT/GoGame/src/game -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fPIC -MD -MT CMakeFiles/gogame_minimax.dir/src/ai/minimax/move_ordering.cpp.obj -MF CMakeFiles\gogame_minimax.dir\src\ai\minimax\move_ordering.cpp.obj.d -o CMakeFiles/gogame_minimax.dir/src/ai/minimax/move_ordering.cpp.obj -c D:/Hai/study/TTNT/GoGame/src/ai/minimax/move_ordering.cpp
+[4/8] Building CXX object CMakeFiles/gogame_minimax.dir/src/ai/minimax/transposition_table.cpp.obj
+FAILED: [code=1] CMakeFiles/gogame_minimax.dir/src/ai/minimax/transposition_table.cpp.obj 
+C:\msys64\mingw64\bin\c++.exe  -ID:/Hai/study/TTNT/GoGame/src -ID:/Hai/study/TTNT/GoGame/src/ai -ID:/Hai/study/TTNT/GoGame/src/game -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fPIC -MD -MT CMakeFiles/gogame_minimax.dir/src/ai/minimax/transposition_table.cpp.obj -MF CMakeFiles\gogame_minimax.dir\src\ai\minimax\transposition_table.cpp.obj.d -o CMakeFiles/gogame_minimax.dir/src/ai/minimax/transposition_table.cpp.obj -c D:/Hai/study/TTNT/GoGame/src/ai/minimax/transposition_table.cpp
+[5/8] Building CXX object CMakeFiles/gogame_minimax.dir/src/ai/minimax/game_tree.cpp.obj
+FAILED: [code=1] CMakeFiles/gogame_minimax.dir/src/ai/minimax/game_tree.cpp.obj 
+C:\msys64\mingw64\bin\c++.exe  -ID:/Hai/study/TTNT/GoGame/src -ID:/Hai/study/TTNT/GoGame/src/ai -ID:/Hai/study/TTNT/GoGame/src/game -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fPIC -MD -MT CMakeFiles/gogame_minimax.dir/src/ai/minimax/game_tree.cpp.obj -MF CMakeFiles\gogame_minimax.dir\src\ai\minimax\game_tree.cpp.obj.d -o CMakeFiles/gogame_minimax.dir/src/ai/minimax/game_tree.cpp.obj -c D:/Hai/study/TTNT/GoGame/src/ai/minimax/game_tree.cpp
+[6/8] Building CXX object CMakeFiles/gogame_core.dir/src/game/board.cpp.obj
+FAILED: [code=1] CMakeFiles/gogame_core.dir/src/game/board.cpp.obj 
+C:\msys64\mingw64\bin\c++.exe  -ID:/Hai/study/TTNT/GoGame/src -ID:/Hai/study/TTNT/GoGame/src/game -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wpedantic -fPIC -MD -MT CMakeFiles/gogame_core.dir/src/game/board.cpp.obj -MF CMakeFiles\gogame_core.dir\src\game\board.cpp.obj.d -o CMakeFiles/gogame_core.dir/src/game/board.cpp.obj -c D:/Hai/study/TTNT/GoGame/src/game/board.cpp
+ninja: build stopped: subcommand failed.

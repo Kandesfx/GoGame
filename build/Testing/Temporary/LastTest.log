@@ -1,0 +1,48 @@
+Start testing: Nov 19 02:03 SE Asia Standard Time
+----------------------------------------------------------
+1/3 Testing: test_board
+1/3 Test: test_board
+Command: "D:/Hai/study/TTNT/GoGame/build/test_board.exe"
+Directory: D:/Hai/study/TTNT/GoGame/build
+"test_board" start time: Nov 19 02:03 SE Asia Standard Time
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"test_board" end time: Nov 19 02:03 SE Asia Standard Time
+"test_board" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/3 Testing: test_minimax
+2/3 Test: test_minimax
+Command: "D:/Hai/study/TTNT/GoGame/build/test_minimax.exe"
+Directory: D:/Hai/study/TTNT/GoGame/build
+"test_minimax" start time: Nov 19 02:03 SE Asia Standard Time
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"test_minimax" end time: Nov 19 02:03 SE Asia Standard Time
+"test_minimax" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/3 Testing: test_mcts
+3/3 Test: test_mcts
+Command: "D:/Hai/study/TTNT/GoGame/build/test_mcts.exe"
+Directory: D:/Hai/study/TTNT/GoGame/build
+"test_mcts" start time: Nov 19 02:03 SE Asia Standard Time
+Output:
+----------------------------------------------------------
+<end of output>
+Test time =   0.36 sec
+----------------------------------------------------------
+Test Passed.
+"test_mcts" end time: Nov 19 02:03 SE Asia Standard Time
+"test_mcts" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Nov 19 02:03 SE Asia Standard Time
