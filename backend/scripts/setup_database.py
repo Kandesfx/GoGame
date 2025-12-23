@@ -224,6 +224,67 @@ def test_connection(config: dict):
         return False
 
 
+def apply_post_migration_fixes(config: dict):
+    """
+    Bổ sung các cấu trúc còn thiếu khi dùng dump cũ hoặc schema đã tồn tại:
+    - Thêm cột last_activity_at vào refresh_tokens nếu thiếu
+    - Tạo bảng premium_subscriptions nếu chưa có
+    """
+    fixes_sql = """
+    -- Ensure refresh_tokens.last_activity_at exists
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'refresh_tokens'
+              AND column_name = 'last_activity_at'
+        ) THEN
+            ALTER TABLE refresh_tokens ADD COLUMN last_activity_at TIMESTAMPTZ;
+        END IF;
+    END $$;
+
+    -- Ensure premium_subscriptions table exists
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'premium_subscriptions'
+        ) THEN
+            CREATE TABLE premium_subscriptions (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                plan VARCHAR(32) NOT NULL,
+                status VARCHAR(32) NOT NULL DEFAULT 'active',
+                started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                expires_at TIMESTAMPTZ NOT NULL,
+                cancelled_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                UNIQUE (user_id)
+            );
+            CREATE INDEX ix_premium_subscriptions_user_id ON premium_subscriptions(user_id);
+        END IF;
+    END $$;
+    """
+    try:
+        conn = psycopg.connect(
+            host=config["host"],
+            port=config["port"],
+            user=config["user"],
+            password=config["password"],
+            dbname=config["database"]
+        )
+        with conn.cursor() as cur:
+            cur.execute(fixes_sql)
+            conn.commit()
+        conn.close()
+        print("✅ Đã áp dụng post-migration fixes (refresh_tokens, premium_subscriptions).")
+    except psycopg.Error as e:
+        print(f"⚠️  Không thể áp dụng post-migration fixes: {e}")
+        # Không dừng script, chỉ cảnh báo
+
+
 def main():
     """Hàm chính."""
     print("=" * 60)
@@ -274,6 +335,9 @@ def main():
     # Chạy migrations
     run_migrations(backend_dir)
     
+    # Áp dụng các sửa lỗi hậu migration cho schema/dump cũ
+    apply_post_migration_fixes(config)
+
     # Kiểm tra kết nối
     print("\n🔍 Đang kiểm tra kết nối...")
     if test_connection(config):

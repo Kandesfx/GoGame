@@ -819,6 +819,24 @@ ALTER TABLE ONLY public.refresh_tokens
     ADD CONSTRAINT refresh_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
 
 
+-- Patch bổ sung cho phiên bản code hiện tại
+ALTER TABLE IF EXISTS public.refresh_tokens
+    ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS public.premium_subscriptions (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    plan VARCHAR(32) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    cancelled_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id)
+);
+CREATE INDEX IF NOT EXISTS ix_premium_subscriptions_user_id ON public.premium_subscriptions(user_id);
+
 -- Completed on 2025-11-25 20:42:28
 
 --

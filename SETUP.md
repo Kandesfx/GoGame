@@ -116,6 +116,47 @@ cd backend
 alembic upgrade head
 ```
 
+#### Cách 3 (nhanh nhất): Khôi phục DB từ file dump `dbPostgreSQL.sql`
+
+> Dùng khi bạn muốn có đầy đủ bảng + dữ liệu mẫu ngay, không cần chạy migrations.
+
+**Bước 0: Xác định đường dẫn psql (Windows)**
+```ps1
+dir "C:\Program Files\PostgreSQL" -Recurse -Filter psql.exe
+# Ví dụ tìm được: C:\Program Files\PostgreSQL\18\bin\psql.exe
+```
+
+**Bước 1: (Tuỳ chọn) Đặt mật khẩu phiên làm việc**
+```ps1
+$Env:PGPASSWORD="your_postgres_password"
+```
+
+**Bước 2: Tạo DB (nếu chưa có) hoặc xoá sạch schema cũ**
+```ps1
+# Nếu cần xoá kết nối cũ trước khi drop DB
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname='gogame';"
+
+# Cách A: Drop & tạo lại DB
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d postgres -c "DROP DATABASE IF EXISTS gogame;"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d postgres -c "CREATE DATABASE gogame;"
+
+# Cách B: Giữ DB, chỉ reset schema (nhanh khi DB đã tồn tại)
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d gogame -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+```
+
+**Bước 3: Restore dump**
+```ps1
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -d gogame -f "D:\Hai\study\TTNT\GoGame\dbPostgreSQL.sql"
+```
+
+Linux/Mac (nếu psql đã sẵn trong PATH):
+```bash
+psql -U postgres -c "CREATE DATABASE gogame;"
+psql -U postgres -d gogame -f dbPostgreSQL.sql
+```
+
+> Sau khi import dump, **không cần chạy lại migrations**. DB đã có đầy đủ bảng và dữ liệu mẫu.
+
 ### 2.6. Build C++ AI Engine (nếu cần)
 
 > **Lưu ý**: Module `gogame_py` cần **pybind11** để build. Nếu không có pybind11, module sẽ không được tạo.
