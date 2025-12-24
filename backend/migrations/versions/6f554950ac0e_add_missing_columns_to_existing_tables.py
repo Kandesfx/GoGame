@@ -32,7 +32,8 @@ def upgrade() -> None:
             ) THEN
                 -- Tạo bảng users với các cột cơ bản
                 CREATE TABLE public.users (
-                    id VARCHAR(36) PRIMARY KEY,
+                    -- Dùng UUID để khớp schema mới và các FK (premium_subscriptions)
+                    id UUID PRIMARY KEY,
                     username VARCHAR(32) UNIQUE NOT NULL,
                     email VARCHAR(255) UNIQUE NOT NULL,
                     password_hash VARCHAR(255) NOT NULL,
@@ -61,6 +62,18 @@ def upgrade() -> None:
                 SELECT 1 FROM information_schema.tables 
                 WHERE table_schema = 'public' AND table_name = 'users'
             ) THEN
+                -- Đảm bảo id đang là UUID (tránh xung đột FK về sau)
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_schema = 'public' 
+                    AND table_name = 'users' 
+                    AND column_name = 'id'
+                    AND data_type <> 'uuid'
+                ) THEN
+                    ALTER TABLE public.users
+                        ALTER COLUMN id TYPE UUID USING id::UUID;
+                END IF;
+                
                 -- Kiểm tra và thêm display_name
                 IF NOT EXISTS (
                     SELECT 1 FROM information_schema.columns 

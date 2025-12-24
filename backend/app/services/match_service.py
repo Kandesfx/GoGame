@@ -13,10 +13,57 @@ _GOGAME_PY_WRAPPER = False
 go = None  # type: ignore
 _wrapper_select_move = None  # type: ignore
 
+# QUAN TRỌNG: Kiểm tra xem gogame_py có tồn tại trong build directory không
+# Nếu không có trong build/, không nên dùng direct import (có thể là file cũ)
+from pathlib import Path
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+BUILD_DIR = PROJECT_ROOT / "build"
+
+def _check_gogame_py_in_build() -> bool:
+    """Kiểm tra xem gogame_py module có tồn tại trong build directory không."""
+    pyd_files = list(BUILD_DIR.glob("gogame_py*.pyd"))
+    return len(pyd_files) > 0
+
 try:
     import gogame_py as go
-    _GOGAME_PY_DIRECT = True
-    logging.info("✅ gogame_py module loaded successfully")
+    # QUAN TRỌNG: Kiểm tra xem module có phải từ build directory không
+    module_path = Path(go.__file__) if hasattr(go, '__file__') else None
+    if module_path:
+        # Resolve paths để so sánh chính xác
+        module_path_resolved = module_path.resolve()
+        build_dir_resolved = BUILD_DIR.resolve()
+        
+        # Kiểm tra xem file có trong build directory hoặc app directory (Docker) không
+        # Trong Docker, file được copy vào /app/gogame_py.so
+        app_dir_resolved = Path("/app").resolve() if Path("/app").exists() else None
+        is_in_build = (
+            build_dir_resolved in module_path_resolved.parents or 
+            module_path_resolved.parent == build_dir_resolved or
+            str(module_path_resolved).startswith(str(build_dir_resolved)) or
+            (app_dir_resolved and (
+                app_dir_resolved in module_path_resolved.parents or
+                module_path_resolved.parent == app_dir_resolved or
+                str(module_path_resolved).startswith(str(app_dir_resolved))
+            ))
+        )
+        
+        if is_in_build:
+            _GOGAME_PY_DIRECT = True
+            logging.info(f"✅ gogame_py module loaded successfully from build directory: {module_path_resolved}")
+        else:
+            # File không ở trong build directory - có thể là file cũ
+            _GOGAME_PY_DIRECT = False
+            logging.warning(f"⚠️ gogame_py module found but NOT in build directory!")
+            logging.warning(f"⚠️ Module path: {module_path_resolved}")
+            logging.warning(f"⚠️ Expected in: {build_dir_resolved}")
+            logging.warning(f"⚠️ This may be an old file. Please build the module: cmake --build build --target gogame_py")
+            logging.warning(f"⚠️ AI direct import DISABLED. Will use wrapper or ML model if available.")
+            go = None  # type: ignore
+    else:
+        # Không có __file__ - có thể là built-in module (không nên xảy ra)
+        _GOGAME_PY_DIRECT = False
+        logging.warning("⚠️ gogame_py module loaded but cannot determine file location")
+        go = None  # type: ignore
 except ImportError:
     go = None  # type: ignore
     _GOGAME_PY_DIRECT = False
@@ -713,10 +760,23 @@ class MatchService:
             
             # RÀNG BUỘC 4: Kiểm tra đúng lượt của người chơi (chỉ cho PvP)
             if not match.ai_level:
-                # Lấy current player từ match state (an toàn hơn)
-                state = await self.get_match_state(match)
-                # Nếu state là None (match mới tạo), mặc định là lượt Black (người tạo bàn)
-                expected_color = state.get("current_player", "B") if state else "B"
+                # QUAN TRỌNG: Lấy current player từ board thực tế (đảm bảo chính xác)
+                # Thay vì chỉ dựa vào MongoDB state (có thể không sync)
+                try:
+                    if go:
+                        # Có gogame_py - lấy từ board thực tế
+                        board = await self._get_or_create_board(match)
+                        current_player_enum = board.current_player()
+                        expected_color = "W" if current_player_enum == go.Color.White else "B"
+                    else:
+                        # Fallback: lấy từ MongoDB state
+                        state = await self.get_match_state(match)
+                        expected_color = state.get("current_player", "B") if state else "B"
+                except Exception as e:
+                    # Nếu có lỗi, fallback về MongoDB state
+                    logger.warning(f"Error getting current player from board: {e}, falling back to MongoDB state")
+                    state = await self.get_match_state(match)
+                    expected_color = state.get("current_player", "B") if state else "B"
                 
                 # Xác định màu của user
                 user_color = "B" if is_black else "W"
@@ -1102,6 +1162,17 @@ class MatchService:
         # Load board từ game state
         board = await self._get_or_create_board(match)
         
+        # QUAN TRỌNG: Validate màu move với current_player từ board (cho cả PvP và AI)
+        # Đảm bảo move.color đúng với current_player
+        current_player_enum = board.current_player()
+        current_player_str = "W" if current_player_enum == go.Color.White else "B"
+        
+        # Trong PvP, đảm bảo move.color đúng với current_player
+        if not match.ai_level:
+            if move.color != current_player_str:
+                logger.warning(f"⚠️ Move color mismatch in PvP match: current_player={current_player_str}, move.color={move.color}, forcing to '{current_player_str}'")
+                move.color = current_player_str  # Force màu đúng với current_player
+        
         # QUAN TRỌNG: Trong AI match, validate màu move với current_player từ board
         # User có thể là Black hoặc White tùy thuộc vào lựa chọn khi tạo match
         if match.ai_level:
@@ -1210,6 +1281,25 @@ class MatchService:
         
         # Kiểm tra game over
         is_game_over = board.is_game_over()
+        
+        # QUAN TRỌNG: Đối với PvP, cần kiểm tra thêm từ MongoDB moves
+        # để đảm bảo phát hiện game over đúng (2 pass liên tiếp)
+        if not match.ai_level and not is_game_over:
+            # Reload moves từ MongoDB để kiểm tra
+            updated_game_doc = await collection.find_one({"match_id": match.id})
+            updated_moves = updated_game_doc.get("moves", []) if updated_game_doc else []
+            
+            # Kiểm tra 2 pass liên tiếp từ 2 người chơi khác nhau
+            if len(updated_moves) >= 2:
+                last_move = updated_moves[-1] if updated_moves else None
+                second_last_move = updated_moves[-2] if len(updated_moves) >= 2 else None
+                
+                if (last_move and last_move.get("position") is None and
+                    second_last_move and second_last_move.get("position") is None and
+                    last_move.get("color") != second_last_move.get("color")):
+                    # Cả 2 bên đều pass -> game over
+                    is_game_over = True
+                    logger.info(f"Game over detected from moves: Both players passed consecutively (PvP match {match.id})")
         
         # Update match nếu game over
         if is_game_over and not match.finished_at:
@@ -1389,7 +1479,11 @@ class MatchService:
         return result
 
     async def _get_or_create_board(self, match: match_model.Match) -> "go.Board":
-        """Lấy hoặc tạo Board từ game state trong MongoDB."""
+        """Lấy hoặc tạo Board từ game state trong MongoDB.
+        
+        QUAN TRỌNG: Đảm bảo board state đồng bộ với MongoDB.
+        Replay tất cả moves để đảm bảo board state chính xác.
+        """
         if not go:
             raise RuntimeError("gogame_py module not available")
         
@@ -1399,17 +1493,28 @@ class MatchService:
         board = go.Board(match.board_size)
         
         if game_doc and "moves" in game_doc:
-            # Replay moves
-            for move_doc in game_doc["moves"]:
-                color = go.Color.Black if move_doc["color"] == "B" else go.Color.White
-                if move_doc.get("position"):
+            moves = game_doc["moves"]
+            # Replay moves theo thứ tự để đảm bảo board state chính xác
+            for move_doc in moves:
+                color = go.Color.Black if move_doc.get("color") == "B" else go.Color.White
+                
+                # Xử lý pass move
+                if not move_doc.get("position") or move_doc.get("position") is None:
+                    move = go.Move.Pass(color)
+                else:
                     x, y = move_doc["position"]
                     move = go.Move(x, y, color)
-                else:
-                    move = go.Move.pass_move(color)
                 
+                # Validate và apply move
                 if board.is_legal_move(move):
-                    board.make_move(move)
+                    try:
+                        board.make_move(move)
+                    except Exception as e:
+                        logger.warning(f"Error replaying move {move_doc.get('number')} for match {match.id}: {e}")
+                        # Nếu có lỗi, bỏ qua move này (có thể do state không đồng bộ)
+                        continue
+                else:
+                    logger.warning(f"Illegal move {move_doc.get('number')} in match {match.id}, skipping")
         
         return board
 
@@ -1419,12 +1524,25 @@ class MatchService:
             logger.warning(f"AI level not set for match {match.id}")
             return None
         
-        logger.debug(f"AI move: ml={_ML_MODEL_AVAILABLE}, direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER}, board={board is not None}")
+        logger.info(f"🔍 [AI DEBUG] ========== AI MOVE REQUEST ==========")
+        logger.info(f"🔍 [AI DEBUG] Match ID: {match.id}")
+        logger.info(f"🔍 [AI DEBUG] ML Model Available: {_ML_MODEL_AVAILABLE}")
+        logger.info(f"🔍 [AI DEBUG] gogame_py Direct: {_GOGAME_PY_DIRECT}")
+        logger.info(f"🔍 [AI DEBUG] gogame_py Wrapper: {_GOGAME_PY_WRAPPER}")
+        logger.info(f"🔍 [AI DEBUG] Board object: {board is not None}")
+        logger.info(f"🔍 [AI DEBUG] go module: {go is not None}")
+        logger.info(f"🔍 [AI DEBUG] ai_player: {self.ai_player is not None}")
         
-        # Try ML model first (nếu có)
-        if _ML_MODEL_AVAILABLE:
+        # QUAN TRỌNG: Chỉ dùng ML model nếu gogame_py không có trong build/
+        # Nếu gogame_py có trong build/, ưu tiên dùng gogame_py (code mới nhất)
+        use_ml_first = _ML_MODEL_AVAILABLE and not _GOGAME_PY_DIRECT
+        
+        logger.info(f"🔍 [AI DEBUG] use_ml_first={use_ml_first} (ML available: {_ML_MODEL_AVAILABLE}, gogame_py direct: {_GOGAME_PY_DIRECT})")
+        
+        # Try ML model first (chỉ nếu không có gogame_py trong build/)
+        if use_ml_first:
             try:
-                logger.info(f"🤖 [ML] Trying ML model AI move for match {match.id}")
+                logger.info(f"🤖 [ML] Trying ML model AI move for match {match.id} (gogame_py not in build/)")
                 result = await self._make_ai_move_ml(match)
                 if result:
                     logger.info(f"✅ [ML] ML model AI move successful for match {match.id}")
@@ -1433,12 +1551,13 @@ class MatchService:
             except Exception as e:
                 logger.warning(f"[ML] ML model AI move failed, falling back to traditional AI: {e}", exc_info=True)
         
-        # Try direct import (nếu có gogame_py và board)
+        # Try direct import (nếu có gogame_py trong build/ và board)
         if _GOGAME_PY_DIRECT and self.ai_player and go and board:
             try:
                 logger.debug(f"Trying direct AI move")
                 result = await self._make_ai_move_direct(match, board)
                 if result:
+                    logger.info(f"✅ Direct AI move successful")
                     return result
                 logger.warning(f"Direct AI move returned None, falling back to wrapper")
             except Exception as e:
@@ -1450,13 +1569,17 @@ class MatchService:
                 logger.debug(f"Using wrapper AI move")
                 result = await self._make_ai_move_wrapper(match)
                 if result:
+                    logger.info(f"✅ Wrapper AI move successful")
                     return result
                 logger.warning(f"Wrapper AI move returned None")
             except Exception as e:
                 logger.error(f"Wrapper AI move failed: {e}", exc_info=True)
                 return None
         
-        logger.warning(f"AI not available for match {match.id} (ml={_ML_MODEL_AVAILABLE}, direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER})")
+        logger.error(f"❌ [AI DEBUG] ========== AI NOT AVAILABLE ==========")
+        logger.error(f"❌ [AI DEBUG] All AI methods failed or disabled")
+        logger.error(f"❌ [AI DEBUG] ml={_ML_MODEL_AVAILABLE}, direct={_GOGAME_PY_DIRECT}, wrapper={_GOGAME_PY_WRAPPER}")
+        logger.error(f"❌ [AI DEBUG] ======================================")
         return None
     
     async def _make_ai_move_ml(self, match: match_model.Match) -> dict | None:
@@ -1597,7 +1720,19 @@ class MatchService:
     
     async def _make_ai_move_direct(self, match: match_model.Match, board: "go.Board") -> dict | None:
         """AI move selection với direct import."""
-        timeout = self.settings.ai_move_timeout_seconds
+        # Timeout động dựa trên AI level và board size
+        base_timeout = self.settings.ai_move_timeout_seconds
+        board_size = match.board_size
+        
+        # Tính timeout động: level cao hơn và board lớn hơn cần nhiều thời gian hơn
+        if match.ai_level >= 4:  # Siêu khó
+            timeout = 90 if board_size >= 19 else 60 if board_size >= 13 else 45
+        elif match.ai_level >= 3:  # Khó
+            timeout = 60 if board_size >= 19 else 45 if board_size >= 13 else 30
+        else:  # Dễ và Trung bình
+            timeout = base_timeout
+        
+        logger.info(f"🤖 [DIRECT] AI level {match.ai_level}, board {board_size}x{board_size}, timeout: {timeout}s")
         retry_count = self.settings.ai_move_retry_count
         
         for attempt in range(retry_count + 1):
@@ -1737,19 +1872,38 @@ class MatchService:
         
         logger.info(f"🤖 [WRAPPER] Calling AI wrapper with board_state: size={board_state['board_size']}, moves={len(board_state['moves'])}, current_player={board_state['current_player']}")
         
-        # Call wrapper
+        # Call wrapper với timeout động dựa trên level
+        # Level 4 (siêu khó) cần nhiều thời gian hơn
+        board_size = match.board_size
+        if match.ai_level >= 4:  # Siêu khó
+            wrapper_timeout = 90 if board_size >= 19 else 70 if board_size >= 13 else 50
+        elif match.ai_level >= 3:  # Khó
+            wrapper_timeout = 60 if board_size >= 19 else 45 if board_size >= 13 else 30
+        else:  # Dễ và Trung bình
+            wrapper_timeout = 30
+        
+        logger.info(f"🤖 [WRAPPER] Using timeout: {wrapper_timeout}s for level {match.ai_level}, board {board_size}x{board_size}")
+        
         try:
             loop = asyncio.get_event_loop()
-            move_data = await loop.run_in_executor(
-                None,
-                _wrapper_select_move,
-                board_state,
-                match.ai_level,
+            move_data = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    _wrapper_select_move,
+                    board_state,
+                    match.ai_level,
+                ),
+                timeout=wrapper_timeout
             )
             
             if not move_data:
                 logger.warning(f"⚠️ [WRAPPER] AI wrapper returned no move for match {match.id}")
                 logger.warning(f"⚠️ [WRAPPER] Possible reasons: MSYS2 Python not found, gogame_py module not available, or AI cannot make a move")
+        except asyncio.TimeoutError:
+            logger.error(f"❌ [WRAPPER] AI wrapper timeout after {wrapper_timeout}s for level {match.ai_level}")
+            logger.warning(f"⚠️ [WRAPPER] AI level {match.ai_level} với board {board_size}x{board_size} mất quá nhiều thời gian")
+            logger.warning(f"⚠️ [WRAPPER] Có thể cần tối ưu thuật toán AI hoặc giảm độ sâu tìm kiếm")
+            return None
         except Exception as e:
             logger.error(f"❌ [WRAPPER] Error calling AI wrapper: {e}", exc_info=True)
             return None
@@ -2112,6 +2266,22 @@ class MatchService:
         
         return territory_black, territory_white
 
+    def _calculate_komi(self, board_size: int) -> float:
+        """Tính komi (điểm bù) cho White dựa trên kích thước bàn cờ.
+        
+        Args:
+            board_size: Kích thước bàn cờ (9, 13, hoặc 19)
+            
+        Returns:
+            Komi value (float)
+        """
+        if board_size == 9:
+            return 5.5  # Bàn 9x9: komi thấp hơn
+        elif board_size == 13:
+            return 6.5  # Bàn 13x13: komi trung bình
+        else:  # 19x19
+            return 7.5  # Bàn 19x19: komi chuẩn
+
     def _calculate_game_result_fallback(self, board_position: dict, match: match_model.Match) -> str:
         """Tính điểm từ board_position trong fallback mode (không có gogame_py).
         
@@ -2139,9 +2309,9 @@ class MatchService:
         # Tính territory bằng flood-fill: tìm các vùng trống được bao quanh hoàn toàn bởi một màu
         territory_black, territory_white = self._calculate_territory_flood_fill_fallback(board_position, match.board_size)
         
-        # Komi for white (compensation for going second) - Luật Trung Quốc: 7.5
+        # Komi for white (compensation for going second) - Điều chỉnh theo board size
         # Lưu ý: Komi chỉ được cộng cho White, không cộng cho Black
-        komi = 7.5
+        komi = self._calculate_komi(match.board_size)
         
         # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
         black_score = stones_black + territory_black
@@ -2199,8 +2369,8 @@ class MatchService:
         # Tính territory bằng flood-fill: tìm các vùng trống được bao quanh hoàn toàn bởi một màu
         territory_black, territory_white = self._calculate_territory_flood_fill(board, match.board_size)
         
-        # Komi for white (compensation for going second) - Luật Trung Quốc: 7.5
-        komi = 7.5
+        # Komi for white (compensation for going second) - Điều chỉnh theo board size
+        komi = self._calculate_komi(match.board_size)
         
         # Tính điểm theo luật Trung Quốc: Số quân trên bàn + Lãnh thổ + Komi
         # Lưu ý: Komi chỉ được cộng cho White, không cộng cho Black
@@ -2605,16 +2775,22 @@ class MatchService:
     async def undo_move(self, match: match_model.Match, current_user_id: str) -> dict:
         """Hoàn tác nước đi cuối cùng.
         
+        LƯU Ý: Chức năng Undo chỉ khả dụng cho AI matches, không khả dụng cho PvP matches.
+        
         Args:
             match: Match object
             current_user_id: ID của user đang yêu cầu undo
-        
+            
         Returns:
             Dict với thông tin về move đã undo và board state mới
-        
+            
         Raises:
-            ValueError: Nếu không thể undo (match ended, no moves, not user's move, etc.)
+            ValueError: Nếu không thể undo (match ended, no moves, not user's move, PvP match, etc.)
         """
+        # QUAN TRỌNG: Tắt chức năng Undo cho PvP matches
+        if not match.ai_level:
+            raise ValueError("Chức năng Undo không khả dụng cho trận đấu người với người (PvP). Chỉ có thể sử dụng trong trận đấu với AI.")
+        
         # Kiểm tra match chưa kết thúc
         if match.finished_at:
             raise ValueError("Không thể undo: Trận đấu đã kết thúc")
@@ -2665,18 +2841,10 @@ class MatchService:
                 moves_to_undo.append(user_move)
                 logger.info(f"Undo AI match: Removed user move ({user_move.get('position')})")
         else:
-            # PvP match: kiểm tra user có phải là player của màu đó không
-            is_black_player = match.black_player_id == current_user_id
-            is_white_player = match.white_player_id == current_user_id
-            
-            if last_move_color == "B" and not is_black_player:
-                raise ValueError("Không thể undo: Nước đi cuối cùng không phải của bạn")
-            if last_move_color == "W" and not is_white_player:
-                raise ValueError("Không thể undo: Nước đi cuối cùng không phải của bạn")
-            
-            # Chỉ undo 1 move trong PvP
-            user_move = moves.pop()
-            moves_to_undo.append(user_move)
+            # PvP match: Undo không được phép (đã check ở đầu hàm)
+            # Code này không bao giờ được chạy vì đã raise error ở đầu
+            # Giữ lại để đảm bảo code không bị lỗi nếu có bug
+            raise ValueError("Chức năng Undo không khả dụng cho trận đấu người với người (PvP). Chỉ có thể sử dụng trong trận đấu với AI.")
         
         # Rebuild board state từ moves còn lại
         if not go:

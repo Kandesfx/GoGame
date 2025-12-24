@@ -21,6 +21,13 @@ from .services.statistics_service import StatisticsService
 from .services.matchmaking_service import MatchmakingService
 from .services.payment_service import PaymentService
 
+# Import ML position analysis service safely (optional dependency)
+try:
+    from .services.ml_position_analysis_service import get_ml_position_analysis_service
+except ImportError:
+    # ML dependencies not available - service will be None
+    get_ml_position_analysis_service = None
+
 BearerToken = HTTPBearer(auto_error=False)
 
 
@@ -106,6 +113,13 @@ def get_matchmaking_service(db: Annotated[Session, Depends(get_db)]) -> Matchmak
 
 def get_payment_service(db: Annotated[Session, Depends(get_db)]) -> PaymentService:
     return PaymentService(db=db)
+
+
+def get_ml_position_analysis_service_dep():
+    """Dependency để get ML position analysis service."""
+    if get_ml_position_analysis_service is None:
+        return None
+    return get_ml_position_analysis_service()
 
 
 def get_current_user(

@@ -189,7 +189,7 @@ class PremiumService:
         await collection.insert_one(
             {
                 "_id": request.id,
-                "match_id": match.id,
+                "match_id": str(match.id),
                 "feature": "hint",
                 "summary": f"{len(hints)} đề xuất nước đi",
                 "details": {"moves": hints},
@@ -275,7 +275,10 @@ class PremiumService:
                 territory_white = board.get_prisoners(go.Color.White)
 
                 # Game phase estimation
-                move_count = len((await self.mongo_db.get_collection("games").find_one({"match_id": match.id}) or {}).get("moves", []))
+                # Note: match_id được lưu dưới dạng string trong MongoDB
+                match_id_str = str(match.id)
+                game_doc = await self.mongo_db.get_collection("games").find_one({"match_id": match_id_str})
+                move_count = len((game_doc or {}).get("moves", []))
                 board_size_sq = match.board_size * match.board_size
                 if move_count < board_size_sq * 0.3:
                     phase = "opening"
@@ -303,7 +306,9 @@ class PremiumService:
                 }
         else:
             # Fallback analysis
-            game_doc = await self.mongo_db.get_collection("games").find_one({"match_id": match.id})
+            # Note: match_id được lưu dưới dạng string trong MongoDB
+            match_id_str = str(match.id)
+            game_doc = await self.mongo_db.get_collection("games").find_one({"match_id": match_id_str})
             move_count = len((game_doc or {}).get("moves", []))
             analysis_details = {
                 "win_probability": 0.5,
@@ -321,7 +326,7 @@ class PremiumService:
         await collection.insert_one(
             {
                 "_id": request.id,
-                "match_id": match.id,
+                "match_id": str(match.id),
                 "feature": "analysis",
                 "summary": f"Win probability: {analysis_details.get('win_probability', 0.5):.1%}",
                 "details": analysis_details,
@@ -349,113 +354,167 @@ class PremiumService:
         if go:
             try:
                 # Load game history
+                # Note: match_id được lưu dưới dạng string trong MongoDB
                 collection = self.mongo_db.get_collection("games")
-                game_doc = await collection.find_one({"match_id": match.id})
-                moves = (game_doc or {}).get("moves", [])
-
-                if moves:
-                    # Replay game và phân tích từng move
-                    board = go.Board(match.board_size)
-                    loop = asyncio.get_event_loop()
-                    minimax_config = go.MinimaxConfig()
-                    minimax_config.max_depth = 2
-                    minimax_config.use_alpha_beta = True
-
-                    mistakes = []
-                    key_moments = []
-
-                    for i, move_doc in enumerate(moves):
-                        color = go.Color.Black if move_doc["color"] == "B" else go.Color.White
-                        if move_doc.get("position"):
-                            x, y = move_doc["position"]
-                            move = go.Move(x, y, color)
-                        else:
-                            move = go.Move.pass_move(color)
-
-                        # Evaluate position trước move (với cache)
-                        board_hash_before = board.zobrist_hash()
-                        cache_key_before = (board_hash_before, color == go.Color.Black)
-                        eval_before = self.eval_cache.get(cache_key_before)
-
-                        if eval_before is None:
-                            minimax_engine = go.MinimaxEngine(minimax_config)
-                            search_before = await loop.run_in_executor(
-                                None,
-                                lambda: minimax_engine.search(board, color),
-                            )
-                            eval_before = search_before.evaluation
-                            self.eval_cache.set(cache_key_before, eval_before)
-
-                        # Apply move
-                        if board.is_legal_move(move):
-                            board.make_move(move)
-
-                            # Evaluate position sau move (với cache)
-                            board_hash_after = board.zobrist_hash()
-                            cache_key_after = (board_hash_after, color == go.Color.Black)
-                            eval_after = self.eval_cache.get(cache_key_after)
-
-                            if eval_after is None:
-                                minimax_engine_after = go.MinimaxEngine(minimax_config)
-                                search_after = await loop.run_in_executor(
-                                    None,
-                                    lambda: minimax_engine_after.search(board, color),
-                                )
-                                eval_after = search_after.evaluation
-                                self.eval_cache.set(cache_key_after, eval_after)
-
-                            # Detect mistakes (evaluation giảm đáng kể)
-                            eval_delta = eval_after - eval_before
-                            if eval_delta < -10:  # Mistake threshold
-                                mistakes.append(
-                                    {
-                                        "move_number": move_doc["number"],
-                                        "color": move_doc["color"],
-                                        "position": move_doc.get("position"),
-                                        "eval_delta": round(eval_delta, 2),
-                                        "severity": "major" if eval_delta < -20 else "minor",
-                                    }
-                                )
-
-                            # Key moments (evaluation thay đổi lớn)
-                            if abs(eval_delta) > 15:
-                                key_moments.append(
-                                    {
-                                        "move_number": move_doc["number"],
-                                        "color": move_doc["color"],
-                                        "position": move_doc.get("position"),
-                                        "eval_delta": round(eval_delta, 2),
-                                        "type": "advantage_gain" if eval_delta > 0 else "advantage_loss",
-                                    }
-                                )
-
-                    review_details["mistakes"] = mistakes[:10]  # Top 10 mistakes
-                    review_details["key_moments"] = key_moments[:5]  # Top 5 key moments
+                match_id_str = str(match.id)
+                game_doc = await collection.find_one({"match_id": match_id_str})
+                
+                logger.info(f"Review: Looking for game with match_id={match_id_str}, found: {game_doc is not None}")
+                
+                if not game_doc:
+                    logger.warning(f"Review: No game document found for match_id={match_id_str}")
+                    review_details["error"] = "Không tìm thấy lịch sử ván cờ"
                     review_details["statistics"] = {
-                        "total_moves": len(moves),
-                        "mistakes_count": len(mistakes),
-                        "key_moments_count": len(key_moments),
-                        "black_mistakes": len([m for m in mistakes if m["color"] == "B"]),
-                        "white_mistakes": len([m for m in mistakes if m["color"] == "W"]),
+                        "total_moves": 0,
+                        "mistakes_count": 0,
+                        "key_moments_count": 0,
+                        "black_mistakes": 0,
+                        "white_mistakes": 0,
                     }
+                else:
+                    moves = game_doc.get("moves", [])
+                    logger.info(f"Review: Found {len(moves)} moves in game document")
+
+                    if moves:
+                        # Replay game và phân tích từng move
+                        board = go.Board(match.board_size)
+                        loop = asyncio.get_event_loop()
+                        minimax_config = go.MinimaxConfig()
+                        minimax_config.max_depth = 2
+                        minimax_config.use_alpha_beta = True
+
+                        mistakes = []
+                        key_moments = []
+
+                        for i, move_doc in enumerate(moves):
+                            color = go.Color.Black if move_doc["color"] == "B" else go.Color.White
+                            if move_doc.get("position"):
+                                x, y = move_doc["position"]
+                                move = go.Move(x, y, color)
+                            else:
+                                move = go.Move.pass_move(color)
+
+                            # Evaluate position trước move (với cache)
+                            board_hash_before = board.zobrist_hash()
+                            cache_key_before = (board_hash_before, color == go.Color.Black)
+                            eval_before = self.eval_cache.get(cache_key_before)
+
+                            if eval_before is None:
+                                minimax_engine = go.MinimaxEngine(minimax_config)
+                                search_before = await loop.run_in_executor(
+                                    None,
+                                    lambda: minimax_engine.search(board, color),
+                                )
+                                eval_before = search_before.evaluation
+                                self.eval_cache.set(cache_key_before, eval_before)
+
+                            # Apply move
+                            if board.is_legal_move(move):
+                                board.make_move(move)
+
+                                # Evaluate position sau move (với cache)
+                                board_hash_after = board.zobrist_hash()
+                                cache_key_after = (board_hash_after, color == go.Color.Black)
+                                eval_after = self.eval_cache.get(cache_key_after)
+
+                                if eval_after is None:
+                                    minimax_engine_after = go.MinimaxEngine(minimax_config)
+                                    search_after = await loop.run_in_executor(
+                                        None,
+                                        lambda: minimax_engine_after.search(board, color),
+                                    )
+                                    eval_after = search_after.evaluation
+                                    self.eval_cache.set(cache_key_after, eval_after)
+
+                                # Detect mistakes (evaluation giảm đáng kể)
+                                eval_delta = eval_after - eval_before
+                                if eval_delta < -10:  # Mistake threshold
+                                    mistakes.append(
+                                        {
+                                            "move_number": move_doc["number"],
+                                            "color": move_doc["color"],
+                                            "position": move_doc.get("position"),
+                                            "eval_delta": round(eval_delta, 2),
+                                            "severity": "major" if eval_delta < -20 else "minor",
+                                        }
+                                    )
+
+                                # Key moments (evaluation thay đổi lớn)
+                                if abs(eval_delta) > 15:
+                                    key_moments.append(
+                                        {
+                                            "move_number": move_doc["number"],
+                                            "color": move_doc["color"],
+                                            "position": move_doc.get("position"),
+                                            "eval_delta": round(eval_delta, 2),
+                                            "type": "advantage_gain" if eval_delta > 0 else "advantage_loss",
+                                        }
+                                    )
+
+                        review_details["mistakes"] = mistakes[:10]  # Top 10 mistakes
+                        review_details["key_moments"] = key_moments[:5]  # Top 5 key moments
+                        review_details["statistics"] = {
+                            "total_moves": len(moves),
+                            "mistakes_count": len(mistakes),
+                            "key_moments_count": len(key_moments),
+                            "black_mistakes": len([m for m in mistakes if m["color"] == "B"]),
+                            "white_mistakes": len([m for m in mistakes if m["color"] == "W"]),
+                        }
+                        logger.info(f"Review: Generated {len(mistakes)} mistakes, {len(key_moments)} key moments")
+                    else:
+                        logger.warning(f"Review: No moves found in game document")
+                        review_details["statistics"] = {
+                            "total_moves": 0,
+                            "mistakes_count": 0,
+                            "key_moments_count": 0,
+                            "black_mistakes": 0,
+                            "white_mistakes": 0,
+                        }
 
             except Exception as e:
                 logger.error(f"Error generating review: {e}", exc_info=True)
-                review_details["error"] = "Review generation failed"
+                review_details["error"] = f"Review generation failed: {str(e)}"
                 review_details["fallback"] = True
+                # Đảm bảo statistics luôn có giá trị
+                if not review_details.get("statistics"):
+                    review_details["statistics"] = {
+                        "total_moves": 0,
+                        "mistakes_count": 0,
+                        "key_moments_count": 0,
+                        "black_mistakes": 0,
+                        "white_mistakes": 0,
+                    }
         else:
             review_details["fallback"] = True
             review_details["statistics"] = {
                 "total_moves": 0,
                 "mistakes_count": 0,
                 "key_moments_count": 0,
+                "black_mistakes": 0,
+                "white_mistakes": 0,
             }
+        
+        # Đảm bảo tất cả fields đều có giá trị mặc định
+        if "mistakes" not in review_details:
+            review_details["mistakes"] = []
+        if "key_moments" not in review_details:
+            review_details["key_moments"] = []
+        if "statistics" not in review_details:
+            review_details["statistics"] = {
+                "total_moves": 0,
+                "mistakes_count": 0,
+                "key_moments_count": 0,
+                "black_mistakes": 0,
+                "white_mistakes": 0,
+            }
+        
+        logger.info(f"Review generated: {len(review_details.get('mistakes', []))} mistakes, {len(review_details.get('key_moments', []))} key moments")
 
         collection = self.mongo_db.get_collection("premium_reports")
         await collection.insert_one(
             {
                 "_id": request.id,
-                "match_id": match.id,
+                "match_id": str(match.id),
                 "feature": "review",
                 "summary": f"Review: {review_details.get('statistics', {}).get('mistakes_count', 0)} mistakes found",
                 "details": review_details,

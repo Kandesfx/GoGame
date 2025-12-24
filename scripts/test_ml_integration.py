@@ -23,7 +23,10 @@ except ImportError as e:
 
 # Test load model
 print("\n📦 Testing model load...")
-checkpoint_path = project_root / "checkpoints" / "final_model.pt"
+# Tìm model trong backend/models/ (ưu tiên) hoặc checkpoints/ (backward compatibility)
+checkpoint_path = project_root / "backend" / "models" / "final_model.pt"
+if not checkpoint_path.exists():
+    checkpoint_path = project_root / "checkpoints" / "final_model.pt"
 
 if not checkpoint_path.exists():
     print(f"❌ Checkpoint not found: {checkpoint_path}")

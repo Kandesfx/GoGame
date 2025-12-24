@@ -11,9 +11,11 @@
   z-index: 1000;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   /* Prevent body scroll when dialog is open */
   overflow: hidden;
+  will-change: opacity;
+  transform: translateZ(0); /* Force GPU acceleration */
 }
 
 @keyframes fadeIn {
@@ -38,21 +40,29 @@
   box-shadow: none;
   min-width: auto;
   max-width: none;
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
+  will-change: transform, opacity;
+  transform: translateZ(0); /* Force GPU acceleration */
 }
 
 /* Container theo thiết kế mới */
 .match-dialog-new .mode-dialog {
-  background: linear-gradient(135deg, #182331 0%, #111827 100%);
-  border-radius: 18px;
-  border: 2px solid #f59e0b;
+  background: linear-gradient(135deg, rgba(26, 15, 26, 0.98) 0%, rgba(17, 10, 17, 0.98) 100%);
+  border-radius: 24px;
+  border: 2px solid rgba(139, 111, 71, 0.5);
   box-shadow:
-    0 20px 60px rgba(0, 0, 0, 0.8),
-    0 0 40px rgba(245, 158, 11, 0.25);
-  padding: 32px 40px 28px;
-  min-width: 520px;
-  max-width: 640px;
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 0 48px rgba(139, 111, 71, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  padding: 36px 44px 32px;
+  min-width: 560px;
+  max-width: 680px;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  transform: translateZ(0); /* Force GPU acceleration */
+  will-change: transform;
+  contain: layout style paint; /* Optimize rendering */
 }
 
 @media (max-width: 640px) {
@@ -69,109 +79,374 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(139, 111, 71, 0.3);
 }
 
 .mode-header h2 {
   margin: 0;
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #fbbf24;
+  background: linear-gradient(135deg, #f5e6d3 0%, #d4a574 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 2px 8px rgba(139, 111, 71, 0.3);
 }
 
 .mode-close {
-  background: transparent;
-  border: none;
-  color: #fbbf24;
-  font-size: 22px;
+  background: rgba(139, 111, 71, 0.2);
+  border: 1px solid rgba(139, 111, 71, 0.4);
+  color: #f5e6d3;
+  font-size: 24px;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 999px;
-  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+  padding: 8px 12px;
+  border-radius: 12px;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 .mode-close:hover {
-  background: rgba(251, 191, 36, 0.15);
-  transform: rotate(90deg) scale(1.05);
-  color: #fde68a;
+  background: rgba(139, 111, 71, 0.4);
+  border-color: rgba(139, 111, 71, 0.6);
+  transform: translateZ(0) rotate(90deg) scale(1.1);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(139, 111, 71, 0.3);
 }
 
 .mode-divider {
-  height: 1px;
-  width: 100%;
-  background: linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0),
-    rgba(248, 181, 0, 0.8),
-    rgba(0, 0, 0, 0)
-  );
-  margin-bottom: 20px;
+  display: none; /* Bỏ divider vì đã có border-bottom ở header */
 }
 
 /* Mode cards */
 .mode-card {
-  border-radius: 16px;
-  border: 2px solid rgba(248, 181, 0, 0.35);
-  background: #111827;
-  margin-bottom: 16px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease,
-    transform 0.2s ease;
+  border-radius: 20px;
+  border: 2px solid rgba(139, 111, 71, 0.3);
+  background: linear-gradient(135deg, rgba(26, 15, 26, 0.8) 0%, rgba(17, 10, 17, 0.8) 100%);
+  margin-bottom: 20px;
+  transition: transform 0.2s ease-out,
+              border-color 0.2s ease-out,
+              box-shadow 0.2s ease-out,
+              background 0.2s ease-out;
+  overflow: hidden;
+  position: relative;
+  will-change: transform, border-color;
+  transform: translateZ(0); /* Force GPU acceleration */
+}
+
+.mode-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(139, 111, 71, 0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .mode-card:hover {
-  border-color: rgba(248, 181, 0, 0.75);
-  box-shadow: 0 0 0 1px rgba(248, 181, 0, 0.2);
-  transform: translateY(-1px);
+  border-color: rgba(245, 158, 11, 0.7);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(26, 15, 26, 0.9) 100%);
+  box-shadow: 
+    0 12px 32px rgba(245, 158, 11, 0.3),
+    0 0 0 2px rgba(245, 158, 11, 0.4),
+    0 0 40px rgba(245, 158, 11, 0.2);
+  transform: translate3d(0, -3px, 0) scale(1.01);
+}
+
+.mode-card:hover::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, transparent 100%);
 }
 
 .mode-card-active {
-  border-color: #f97316;
-  background: radial-gradient(circle at top left, #1f2937 0, #020617 55%);
+  border-color: rgba(245, 158, 11, 0.9);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(26, 15, 26, 0.95) 100%);
   box-shadow:
-    0 0 0 1px rgba(248, 181, 0, 0.45),
-    0 18px 40px rgba(0, 0, 0, 0.85),
-    0 0 35px rgba(248, 181, 0, 0.25);
+    0 16px 40px rgba(245, 158, 11, 0.4),
+    0 0 0 3px rgba(245, 158, 11, 0.5),
+    0 0 60px rgba(245, 158, 11, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translate3d(0, -3px, 0) scale(1.02);
+  animation: cardActivePulse 0.6s ease-out;
+  position: relative;
+  overflow: visible;
+}
+
+.mode-card-active::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, transparent 100%);
+}
+
+/* Hiệu ứng tia lửa tỏa ra khi active */
+.mode-card-active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  margin: -100px 0 0 -100px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.4) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: sparkleBurst 0.6s ease-out;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes cardActivePulse {
+  0% {
+    box-shadow:
+      0 8px 24px rgba(245, 158, 11, 0.2),
+      0 0 0 1px rgba(245, 158, 11, 0.3),
+      0 0 20px rgba(245, 158, 11, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 20px 50px rgba(245, 158, 11, 0.5),
+      0 0 0 4px rgba(245, 158, 11, 0.6),
+      0 0 80px rgba(245, 158, 11, 0.4);
+  }
+  100% {
+    box-shadow:
+      0 16px 40px rgba(245, 158, 11, 0.4),
+      0 0 0 3px rgba(245, 158, 11, 0.5),
+      0 0 60px rgba(245, 158, 11, 0.3);
+  }
+}
+
+@keyframes sparkleBurst {
+  0% {
+    transform: translate3d(-50%, -50%, 0) scale(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(-50%, -50%, 0) scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate3d(-50%, -50%, 0) scale(2);
+    opacity: 0;
+  }
+}
+
+/* Tia lửa nhỏ tỏa ra từ các góc */
+.mode-card-active .sparkle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: #fbbf24;
+  border-radius: 50%;
+  box-shadow: 0 0 8px #fbbf24;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.mode-card-active .sparkle:nth-child(1) {
+  top: 10%;
+  left: 10%;
+  animation: sparkleMove1 0.6s ease-out forwards;
+}
+
+.mode-card-active .sparkle:nth-child(2) {
+  top: 10%;
+  right: 10%;
+  animation: sparkleMove2 0.6s ease-out forwards;
+}
+
+.mode-card-active .sparkle:nth-child(3) {
+  bottom: 10%;
+  left: 10%;
+  animation: sparkleMove3 0.6s ease-out forwards;
+}
+
+.mode-card-active .sparkle:nth-child(4) {
+  bottom: 10%;
+  right: 10%;
+  animation: sparkleMove4 0.6s ease-out forwards;
+}
+
+@keyframes sparkleMove1 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-30px, -30px, 0) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes sparkleMove2 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(30px, -30px, 0) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes sparkleMove3 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(-30px, 30px, 0) scale(0);
+    opacity: 0;
+  }
+}
+
+@keyframes sparkleMove4 {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(30px, 30px, 0) scale(0);
+    opacity: 0;
+  }
 }
 
 .mode-card-header {
   width: 100%;
-  padding: 18px 20px;
+  padding: 20px 24px;
   border: none;
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
+  position: relative;
+  z-index: 2;
+  /* Bỏ transition để tránh lag khi click */
 }
 
 .mode-card-left {
   display: flex;
   align-items: center;
   gap: 14px;
+  position: relative;
+  z-index: 2;
 }
 
 .mode-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 999px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+  box-shadow: 
+    0 8px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    0 0 20px rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease-out;
+  position: relative;
+  overflow: hidden;
 }
 
+.mode-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.mode-card:hover .mode-icon::before,
+.mode-card-active .mode-icon::before {
+  opacity: 1;
+}
+
+.mode-icon svg,
 .mode-icon span {
-  font-size: 24px;
+  font-size: 26px;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  color: #fff;
+  width: 26px;
+  height: 26px;
+  transition: transform 0.2s ease-out;
+}
+
+.mode-card:hover .mode-icon svg {
+  transform: scale(1.1);
+}
+
+.mode-card-active .mode-icon svg {
+  transform: scale(1.05);
+  filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.3)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
 }
 
 .mode-icon-pvp {
-  background: radial-gradient(circle at 25% 0, #fecaca 0, #f97316 32%, #b91c1c 100%);
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%);
+  box-shadow: 
+    0 8px 20px rgba(220, 38, 38, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+.mode-card:hover .mode-icon-pvp {
+  box-shadow: 
+    0 10px 24px rgba(220, 38, 38, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 24px rgba(239, 68, 68, 0.4);
+}
+
+.mode-card-active .mode-icon-pvp {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%);
+  box-shadow: 
+    0 12px 28px rgba(220, 38, 38, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 28px rgba(239, 68, 68, 0.5);
 }
 
 .mode-icon-pve {
-  background: radial-gradient(circle at 25% 0, #bfdbfe 0, #3b82f6 35%, #0f766e 100%);
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1e40af 100%);
+  box-shadow: 
+    0 8px 20px rgba(37, 99, 235, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.mode-card:hover .mode-icon-pve {
+  box-shadow: 
+    0 10px 24px rgba(37, 99, 235, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 24px rgba(59, 130, 246, 0.4);
+}
+
+.mode-card-active .mode-icon-pve {
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%);
+  box-shadow: 
+    0 12px 28px rgba(37, 99, 235, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 0 28px rgba(59, 130, 246, 0.5);
 }
 
 .mode-text {
@@ -181,46 +456,76 @@
 }
 
 .mode-title {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
-  color: #fbbf24;
+  color: #f5e6d3;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .mode-subtitle {
-  font-size: 13px;
-  color: #e5e7eb;
-  opacity: 0.8;
+  font-size: 14px;
+  color: rgba(245, 230, 211, 0.7);
   margin-top: 4px;
+  font-weight: 400;
 }
 
 .mode-check {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  background: #fb923c;
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8b6f47 0%, #6b5438 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 13px;
+  font-size: 18px;
+  font-weight: bold;
   box-shadow:
-    0 0 0 1px rgba(250, 204, 21, 0.8),
-    0 0 12px rgba(251, 146, 60, 0.75);
+    0 4px 12px rgba(139, 111, 71, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  /* Bỏ animation để tránh lag - chỉ hiển thị trực tiếp */
+  transform: translateZ(0);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+.mode-card-active .mode-check {
+  opacity: 1;
+  /* Không dùng animation nữa để tránh lag */
 }
 
 .mode-content {
-  padding: 0 20px 18px 20px;
+  padding: 0 24px 24px 24px;
+  /* Chỉ dùng opacity để tránh reflow - mượt nhất */
+  opacity: 0;
+  transform: translateZ(0);
+  transition: opacity 0.15s ease-out;
+  will-change: opacity;
+  pointer-events: none; /* Tránh tương tác khi đang fade */
+}
+
+/* Khi content được hiển thị */
+.mode-content.fade-in {
+  opacity: 1;
+  pointer-events: auto; /* Cho phép tương tác khi hiển thị */
 }
 
 .mode-section {
-  margin-top: 12px;
+  margin-top: 20px;
+}
+
+.mode-section:first-child {
+  margin-top: 0;
 }
 
 .mode-section-label {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
-  color: #fed7aa;
-  margin-bottom: 8px;
+  color: #d4a574;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .mode-button-grid {
@@ -237,77 +542,251 @@
 }
 
 .mode-pill {
-  border-radius: 12px;
-  border: 1px solid #4b5563;
-  background: #020617;
-  color: #d1d5db;
-  font-size: 14px;
-  padding: 10px 12px;
+  border-radius: 14px;
+  border: 2px solid rgba(139, 111, 71, 0.3);
+  background: linear-gradient(135deg, rgba(17, 10, 17, 0.8) 0%, rgba(26, 15, 26, 0.8) 100%);
+  color: #f5e6d3;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 14px 16px;
   cursor: pointer;
-  transition: all 0.18s ease;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.7);
+  transition: transform 0.15s ease-out,
+              border-color 0.15s ease-out,
+              background-color 0.15s ease-out,
+              color 0.15s ease-out,
+              box-shadow 0.15s ease-out;
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+  will-change: transform, border-color;
+  transform: translateZ(0);
+  user-select: none;
+}
+
+/* Hiệu ứng ripple khi click */
+.mode-pill::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.4);
+  transform: translate(-50%, -50%);
+  transition: width 0.4s ease-out, height 0.4s ease-out, opacity 0.4s ease-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-pill:active::after {
+  width: 300px;
+  height: 300px;
+  opacity: 0;
+  transition: width 0.3s ease-out, height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.mode-pill:active {
+  transform: translate3d(0, 0, 0) scale(0.96);
+  transition: transform 0.1s ease-out;
+}
+
+.mode-pill::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(139, 111, 71, 0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .mode-pill:hover {
-  border-color: #f97316;
-  color: #fed7aa;
-  background: #111827;
+  border-color: rgba(245, 158, 11, 0.6);
+  color: #fff;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(26, 15, 26, 0.9) 100%);
+  transform: translate3d(0, -2px, 0) scale(1.02);
+  box-shadow: 
+    0 8px 20px rgba(245, 158, 11, 0.3),
+    0 0 0 2px rgba(245, 158, 11, 0.4),
+    0 0 30px rgba(245, 158, 11, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.mode-pill:hover::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, transparent 100%);
 }
 
 .mode-pill-active {
-  background: #f97316;
-  border-color: #f97316;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+  border-color: rgba(245, 158, 11, 0.9);
   color: #fff;
   box-shadow:
-    0 8px 22px rgba(249, 115, 22, 0.7),
-    0 0 0 1px rgba(254, 215, 170, 0.45);
+    0 10px 28px rgba(245, 158, 11, 0.5),
+    0 0 0 3px rgba(245, 158, 11, 0.6),
+    0 0 50px rgba(245, 158, 11, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+  transform: translate3d(0, -2px, 0) scale(1.03);
+  animation: pillActivePulse 0.5s ease-out;
+  position: relative;
+}
+
+.mode-pill-active::before {
+  opacity: 1;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, transparent 100%);
+}
+
+.mode-pill-active span {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hiệu ứng tia sáng tỏa ra khi active */
+.mode-pill-active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  margin: -100px 0 0 -100px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  animation: pillSparkle 0.5s ease-out;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes pillActivePulse {
+  0% {
+    box-shadow:
+      0 4px 12px rgba(245, 158, 11, 0.2),
+      0 0 0 1px rgba(245, 158, 11, 0.3),
+      0 0 20px rgba(245, 158, 11, 0.1);
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    box-shadow:
+      0 12px 32px rgba(245, 158, 11, 0.6),
+      0 0 0 4px rgba(245, 158, 11, 0.7),
+      0 0 60px rgba(245, 158, 11, 0.5);
+    transform: translate3d(0, -3px, 0) scale(1.05);
+  }
+  100% {
+    box-shadow:
+      0 10px 28px rgba(245, 158, 11, 0.5),
+      0 0 0 3px rgba(245, 158, 11, 0.6),
+      0 0 50px rgba(245, 158, 11, 0.4);
+    transform: translate3d(0, -2px, 0) scale(1.03);
+  }
+}
+
+@keyframes pillSparkle {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+.mode-pill-active:hover {
+  /* Giữ nguyên như trạng thái active, chỉ tăng độ sáng nhẹ */
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  border-color: rgba(251, 191, 36, 1);
+  color: #fff;
+  box-shadow:
+    0 12px 32px rgba(245, 158, 11, 0.6),
+    0 0 0 3px rgba(251, 191, 36, 0.7),
+    0 0 60px rgba(245, 158, 11, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: translate3d(0, -3px, 0) scale(1.04);
 }
 
 /* Footer */
 .mode-footer {
-  margin-top: 18px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(139, 111, 71, 0.3);
 }
 
 .mode-create-button {
   width: 100%;
-  padding: 14px 0;
-  border-radius: 14px;
+  padding: 16px 0;
+  border-radius: 16px;
   border: none;
-  background: linear-gradient(90deg, #f97316 0%, #ea580c 100%);
+  background: linear-gradient(135deg, #8b6f47 0%, #6b5438 100%);
   color: #fff;
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
   box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.9),
-    0 0 35px rgba(249, 115, 22, 0.75);
-  transition: transform 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease;
+    0 8px 24px rgba(139, 111, 71, 0.4),
+    0 0 0 1px rgba(139, 111, 71, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+              filter 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  will-change: transform, box-shadow, filter;
+  transform: translateZ(0);
+}
+
+.mode-create-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .mode-create-button:hover {
-  transform: translateY(-1px) scale(1.01);
+  transform: translate3d(0, -2px, 0) scale(1.02);
   box-shadow:
-    0 16px 38px rgba(0, 0, 0, 0.95),
-    0 0 40px rgba(248, 181, 0, 0.85);
-  filter: brightness(1.03);
+    0 12px 32px rgba(139, 111, 71, 0.5),
+    0 0 0 2px rgba(139, 111, 71, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  filter: brightness(1.1);
+}
+
+.mode-create-button:hover::before {
+  opacity: 1;
 }
 
 .mode-create-button:active {
-  transform: translateY(1px) scale(0.99);
+  transform: translate3d(0, 0, 0) scale(0.98);
   box-shadow:
-    0 8px 22px rgba(0, 0, 0, 0.9),
-    0 0 20px rgba(249, 115, 22, 0.7);
+    0 4px 16px rgba(139, 111, 71, 0.4),
+    0 0 0 1px rgba(139, 111, 71, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: translate3d(0, 30px, 0);
     opacity: 0;
   }
   to {
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
     opacity: 1;
   }
 }
@@ -396,13 +875,60 @@
   margin-top: 1rem;
 }
 .mode-pill-active:hover {
-  /* giữ nguyên như trạng thái active, không đổi khi hover */
-  background: #f97316;
-  border-color: #f97316;
+  /* Giữ nguyên như trạng thái active, chỉ tăng độ sáng nhẹ */
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  border-color: rgba(251, 191, 36, 1);
   color: #fff;
   box-shadow:
-    0 8px 22px rgba(249, 115, 22, 0.7),
-    0 0 0 1px rgba(254, 215, 170, 0.45);
-  transform: none;         /* nếu bạn có transform ở :hover thì reset về none */
-  filter: none;            /* nếu có filter ở :hover thì reset */
+    0 12px 32px rgba(245, 158, 11, 0.6),
+    0 0 0 3px rgba(251, 191, 36, 0.7),
+    0 0 60px rgba(245, 158, 11, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  transform: translate3d(0, -3px, 0) scale(1.04);
+}
+
+/* Room code input */
+.mode-room-code-input {
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: 2px solid rgba(139, 111, 71, 0.4);
+  background: linear-gradient(135deg, rgba(17, 10, 17, 0.8) 0%, rgba(26, 15, 26, 0.8) 100%);
+  color: #f5e6d3;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  text-align: center;
+  text-transform: uppercase;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  font-family: 'Courier New', monospace;
+  will-change: border-color, box-shadow, transform;
+  transform: translateZ(0);
+}
+
+.mode-room-code-input::placeholder {
+  color: rgba(245, 230, 211, 0.3);
+  letter-spacing: 0.3em;
+}
+
+.mode-room-code-input:focus {
+  outline: none;
+  border-color: rgba(139, 111, 71, 0.8);
+  box-shadow:
+    0 8px 24px rgba(139, 111, 71, 0.4),
+    0 0 0 2px rgba(139, 111, 71, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translate3d(0, -2px, 0);
+  background: linear-gradient(135deg, rgba(139, 111, 71, 0.1) 0%, rgba(26, 15, 26, 0.9) 100%);
+}
+
+.mode-room-code-input:hover:not(:focus) {
+  border-color: rgba(139, 111, 71, 0.6);
+  box-shadow: 
+    0 6px 16px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(139, 111, 71, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }

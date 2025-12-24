@@ -3,6 +3,7 @@
 
 #include <limits>
 #include <vector>
+#include <chrono>
 
 #include "../../game/board.h"
 #include "game_tree.h"
@@ -36,6 +37,8 @@ private:
 
     int nodes_searched_;
     int nodes_pruned_;
+    std::chrono::steady_clock::time_point search_start_time_;
+    bool time_limit_exceeded_;
 
     static constexpr float INFINITY_VALUE =
         std::numeric_limits<float>::infinity();
@@ -55,6 +58,12 @@ private:
                   float beta,
                   Color maximizing_player,
                   Move *best_move_out);
+
+    float quiescence_search(Board &board,
+                           float alpha,
+                           float beta,
+                           Color maximizing_player,
+                           int max_depth = 3);
 
     std::vector<Move> get_ordered_moves(const Board &board, Color player);
 

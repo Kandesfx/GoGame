@@ -1,9 +1,587 @@
 import { useState, useEffect, useRef } from 'react'
 import './Board.css'
 
+/**
+ * ============================================================================
+ * ML VISUALIZATION HELPER FUNCTION
+ * ============================================================================
+ * 
+ * Render ML analysis visualization trực tiếp trong Board component để đảm bảo:
+ * - Khớp chính xác với board cells (dùng cùng coordinate system)
+ * - Tự động sync khi board resize
+ * - Hiệu năng tốt (render trong cùng SVG với grid lines)
+ * 
+ * @param {Object} mlAnalysisData - Data từ ML analysis service
+ * @param {string} mlVisualizationMode - Mode: 'threats', 'attacks', 'intent'
+ * @param {number} cellSize - Kích thước cell (từ Board component)
+ * @param {number} padding - Padding của board (12px)
+ * @param {number} boardSize - Kích thước board (9, 13, 19)
+ * @returns {Array|null} Array of SVG elements hoặc null nếu không có data
+ */
+const renderMLVisualization = (mlAnalysisData, mlVisualizationMode, cellSize, padding, boardSize) => {
+  // ========================================================================
+  // VALIDATION: Kiểm tra input parameters
+  // ========================================================================
+  if (!mlAnalysisData) {
+    console.warn('ML Visualization: No analysis data provided');
+    return null;
+  }
+  
+  if (!cellSize || cellSize <= 0) {
+    console.warn('ML Visualization: Invalid cell size:', cellSize);
+    return null;
+  }
+  
+  if (!boardSize || boardSize <= 0) {
+    console.warn('ML Visualization: Invalid board size:', boardSize);
+    return null;
+  }
+  
+  if (!['threats', 'attacks', 'intent'].includes(mlVisualizationMode)) {
+    console.warn('ML Visualization: Invalid mode:', mlVisualizationMode);
+    return null;
+  }
+
+  // ========================================================================
+  // GET HEATMAP DATA: Lấy heatmap data theo mode
+  // ========================================================================
+  const getHeatmapData = () => {
+    switch (mlVisualizationMode) {
+      case 'threats':
+        // Threats: Mối đe dọa - quân của mình bị đe dọa
+        if (!mlAnalysisData.threats || !mlAnalysisData.threats.heatmap) {
+          console.warn('ML Visualization: No threats heatmap data');
+          return [];
+        }
+        return mlAnalysisData.threats.heatmap;
+        
+      case 'attacks':
+        // Attacks: Cơ hội tấn công - nơi có thể tấn công đối thủ
+        if (!mlAnalysisData.attacks || !mlAnalysisData.attacks.heatmap) {
+          console.warn('ML Visualization: No attacks heatmap data');
+          return [];
+        }
+        return mlAnalysisData.attacks.heatmap;
+        
+      case 'intent':
+        // Intent: Ý định chiến lược - nơi AI muốn đánh
+        if (!mlAnalysisData.intent || !mlAnalysisData.intent.heatmap) {
+          console.warn('ML Visualization: No intent heatmap data');
+          return [];
+        }
+        return mlAnalysisData.intent.heatmap;
+        
+      default:
+        console.warn('ML Visualization: Unknown mode:', mlVisualizationMode);
+        return [];
+    }
+  };
+
+  // ========================================================================
+  // GET REGIONS: Lấy regions data (threats/attacks regions)
+  // ========================================================================
+  const getRegions = () => {
+    switch (mlVisualizationMode) {
+      case 'threats':
+        // Threats regions: Nhóm quân bị đe dọa
+        if (!mlAnalysisData.threats || !mlAnalysisData.threats.regions) {
+          return [];
+        }
+        return mlAnalysisData.threats.regions;
+        
+      case 'attacks':
+        // Attacks opportunities: Cơ hội tấn công cụ thể
+        if (!mlAnalysisData.attacks || !mlAnalysisData.attacks.opportunities) {
+          return [];
+        }
+        // Convert opportunities format để render
+        return (mlAnalysisData.attacks.opportunities || []).map(opp => ({
+          ...opp,
+          positions: opp.position ? [opp.position] : [],
+          severity: opp.confidence || 0.5
+        }));
+        
+      case 'intent':
+        // Intent không có regions (chỉ có heatmap)
+        return [];
+        
+      default:
+        return [];
+    }
+  };
+
+  // ========================================================================
+  // GET SEVERITY COLOR: Màu sắc theo giá trị và mode
+  // ========================================================================
+  const getSeverityColor = (value) => {
+    if (mlVisualizationMode === 'threats') {
+      // Threats: Đỏ (nguy hiểm) -> Cam -> Vàng
+      if (value > 0.8) return 'rgba(239, 68, 68, 0.6)';      // Critical: Đỏ đậm
+      if (value > 0.5) return 'rgba(249, 115, 22, 0.5)';   // Moderate: Cam
+      return 'rgba(234, 179, 8, 0.4)';                      // Low: Vàng
+      
+    } else if (mlVisualizationMode === 'attacks') {
+      // Attacks: Xanh lá (tốt) -> Xanh dương -> Xanh nhạt
+      if (value > 0.7) return 'rgba(34, 197, 94, 0.6)';    // High value: Xanh lá
+      if (value > 0.4) return 'rgba(59, 130, 246, 0.5)';   // Medium: Xanh dương
+      return 'rgba(147, 197, 253, 0.3)';                    // Low: Xanh nhạt
+      
+    } else {
+      // Intent: Tím (ý định chiến lược)
+      return 'rgba(168, 85, 247, 0.4)';
+    }
+  };
+
+  // ========================================================================
+  // GET DATA: Lấy heatmap và regions data
+  // ========================================================================
+  const heatmap = getHeatmapData();
+  const regions = getRegions();
+  
+  // Validation: Kiểm tra heatmap có đúng format không
+  if (!Array.isArray(heatmap) || heatmap.length === 0) {
+    console.warn('ML Visualization: Invalid or empty heatmap data');
+    return null;
+  }
+  
+  // Validation: Kiểm tra heatmap có đúng kích thước không
+  if (heatmap.length !== boardSize) {
+    console.warn(`ML Visualization: Heatmap size mismatch. Expected ${boardSize}, got ${heatmap.length}`);
+    return null;
+  }
+  
+  const elements = [];
+
+  // ========================================================================
+  // RENDER HEATMAP: Vẽ heatmap overlay trên board
+  // ========================================================================
+  // Coordinate system:
+  // - Backend trả về: heatmap[y][x] = heatmap[row][col]
+  // - Board component: x = index % boardSize (col), y = Math.floor(index / boardSize) (row)
+  // - Vị trí render: padding + colIndex * cellSize (khớp với cells)
+  if (heatmap.length > 0) {
+    // Threshold khác nhau cho từng mode để tối ưu visualization
+    const threshold = mlVisualizationMode === 'intent' ? 0.1 : 0.2; // Intent cần threshold thấp hơn
+    
+    heatmap.forEach((row, rowIndex) => {
+      // Validation: Kiểm tra row có đúng format không
+      if (!Array.isArray(row) || row.length !== boardSize) {
+        console.warn(`ML Visualization: Invalid row at index ${rowIndex}. Expected length ${boardSize}, got ${row.length}`);
+        return; // Skip invalid row
+      }
+      
+      row.forEach((value, colIndex) => {
+        // Validation: Kiểm tra value có hợp lệ không
+        if (typeof value !== 'number' || isNaN(value) || value < 0) {
+          return; // Skip invalid values
+        }
+        
+        // Chỉ render nếu value >= threshold
+        if (value < threshold) return;
+        
+        // Lấy màu theo severity
+        const color = getSeverityColor(value);
+        
+        // Tính vị trí chính xác: padding + colIndex * cellSize
+        // Đảm bảo khớp với cách Board render cells
+        const xPos = padding + colIndex * cellSize;
+        const yPos = padding + rowIndex * cellSize;
+        
+        // Opacity: Intent cần opacity cao hơn để dễ nhìn
+        const opacity = mlVisualizationMode === 'intent' 
+          ? Math.min(value * 0.8, 0.6)  // Intent: opacity cao hơn
+          : Math.min(value, 0.7);        // Threats/Attacks: opacity bình thường
+        
+        // Render rectangle cho heatmap cell
+        elements.push(
+          <rect
+            key={`heat-${colIndex}-${rowIndex}`}
+            x={xPos}
+            y={yPos}
+            width={cellSize}
+            height={cellSize}
+            fill={color}
+            opacity={opacity}
+          />
+        );
+      });
+    });
+  }
+
+  // ========================================================================
+  // RENDER REGIONS: Vẽ regions (threats boxes, attack markers)
+  // ========================================================================
+  if (Array.isArray(regions) && regions.length > 0) {
+    regions.forEach((region, idx) => {
+      // Validation: Kiểm tra region có hợp lệ không
+      if (!region || typeof region !== 'object') {
+        console.warn(`ML Visualization: Invalid region at index ${idx}`);
+        return; // Skip invalid region
+      }
+      
+      // ====================================================================
+      // THREATS REGIONS: Vẽ box bao quanh nhóm quân bị đe dọa
+      // ====================================================================
+      if (mlVisualizationMode === 'threats' && region.positions && Array.isArray(region.positions) && region.positions.length > 0) {
+        // Backend trả về positions là [x, y] = [col, row]
+        const xs = region.positions.map(p => {
+          if (Array.isArray(p) && p.length >= 2) return p[0];
+          if (p && typeof p === 'object' && p.x !== undefined) return p.x;
+          return 0;
+        }).filter(x => typeof x === 'number' && x >= 0 && x < boardSize);
+        
+        const ys = region.positions.map(p => {
+          if (Array.isArray(p) && p.length >= 2) return p[1];
+          if (p && typeof p === 'object' && p.y !== undefined) return p.y;
+          return 0;
+        }).filter(y => typeof y === 'number' && y >= 0 && y < boardSize);
+        
+        // Validation: Kiểm tra có positions hợp lệ không
+        if (xs.length === 0 || ys.length === 0) {
+          console.warn(`ML Visualization: Invalid threat region positions at index ${idx}`);
+          return; // Skip invalid region
+        }
+        
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+        
+        // Tính bounding box: padding + minIndex * cellSize
+        const boxX = padding + minX * cellSize - 3;  // -3 để có padding
+        const boxY = padding + minY * cellSize - 3;
+        const boxWidth = (maxX - minX + 1) * cellSize + 6;   // +6 để có padding cả 2 bên
+        const boxHeight = (maxY - minY + 1) * cellSize + 6;
+        
+        // Màu theo severity
+        const severity = typeof region.severity === 'number' ? region.severity : 0.5;
+        const color = severity > 0.8 ? '#ef4444' : severity > 0.5 ? '#f97316' : '#eab308';
+        
+        // Render threat box với icon cảnh báo
+        elements.push(
+          <g key={`threat-${idx}`}>
+            {/* Dashed box bao quanh nhóm quân bị đe dọa */}
+            <rect
+              x={boxX}
+              y={boxY}
+              width={boxWidth}
+              height={boxHeight}
+              stroke={color}
+              strokeWidth={3}
+              fill="none"
+              strokeDasharray="5,5"
+            />
+            {/* Icon cảnh báo ở trên box */}
+            <circle
+              cx={boxX + boxWidth / 2}
+              cy={boxY - 12}
+              r={10}
+              fill={color}
+            />
+            <text
+              x={boxX + boxWidth / 2}
+              y={boxY - 8}
+              textAnchor="middle"
+              fontSize={12}
+              fill="white"
+            >
+              ⚠️
+            </text>
+          </g>
+        );
+        
+      // ====================================================================
+      // ATTACKS REGIONS: Vẽ marker cho cơ hội tấn công
+      // ====================================================================
+      } else if (mlVisualizationMode === 'attacks') {
+        // Attacks có format: { position: [x, y], confidence: number }
+        const position = region.position || (region.positions && Array.isArray(region.positions) && region.positions[0]);
+        
+        // Validation: Kiểm tra position có hợp lệ không
+        if (!position || !Array.isArray(position) || position.length !== 2) {
+          console.warn(`ML Visualization: Invalid attack position at index ${idx}`);
+          return; // Skip invalid attack
+        }
+        
+        const [x, y] = position; // [col, row]
+        
+        // Validation: Kiểm tra coordinates có trong board không
+        if (typeof x !== 'number' || typeof y !== 'number' || 
+            x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
+          console.warn(`ML Visualization: Attack position out of bounds at index ${idx}: [${x}, ${y}]`);
+          return; // Skip invalid position
+        }
+        
+        // Tính center của cell: padding + index * cellSize + cellSize/2
+        const centerX = padding + x * cellSize + cellSize / 2;
+        const centerY = padding + y * cellSize + cellSize / 2;
+        
+        // Màu theo confidence
+        const confidence = typeof region.confidence === 'number' ? region.confidence : 0.5;
+        const color = confidence > 0.7 ? '#22c55e' : '#3b82f6';
+        
+        // Render attack marker (circle + arrow)
+        elements.push(
+          <g key={`attack-${idx}`}>
+            {/* Circle background */}
+            <circle
+              cx={centerX}
+              cy={centerY}
+              r={cellSize * 0.4}
+              fill={color}
+              opacity={0.3}
+            />
+            {/* Arrow pointing down (attack direction) */}
+            <polygon
+              points={`${centerX},${centerY - cellSize * 0.3} ${centerX - cellSize * 0.2},${centerY + cellSize * 0.2} ${centerX + cellSize * 0.2},${centerY + cellSize * 0.2}`}
+              fill={color}
+            />
+          </g>
+        );
+      }
+      // Intent không có regions (chỉ có heatmap)
+    });
+  }
+
+  // ========================================================================
+  // RETURN: Trả về array of SVG elements
+  // ========================================================================
+  // Nếu không có elements nào, trả về null (không render gì)
+  if (elements.length === 0) {
+    console.warn('ML Visualization: No elements to render');
+    return null;
+  }
+  
+  return elements;
+};
+
+/**
+ * ============================================================================
+ * HINT VISUALIZATION HELPER FUNCTION
+ * ============================================================================
+ * Render hints visualization trên board - hiển thị các nước đi gợi ý
+ */
+const renderHintVisualization = (hints, cellSize, padding, boardSize) => {
+  console.log('renderHintVisualization called:', { hints, cellSize, padding, boardSize });
+  
+  if (!hints || !Array.isArray(hints) || hints.length === 0) {
+    console.warn('renderHintVisualization: Invalid hints', hints);
+    return null;
+  }
+  
+  if (!cellSize || cellSize <= 0 || !boardSize || boardSize <= 0) {
+    console.warn('renderHintVisualization: Invalid dimensions', { cellSize, boardSize });
+    return null;
+  }
+  
+  const elements = [];
+  
+  hints.forEach((hint, index) => {
+    // Hints có format: { move: [x, y], confidence: number, is_pass: boolean }
+    const move = hint.move;
+    
+    if (!move || hint.is_pass || !Array.isArray(move) || move.length !== 2) {
+      console.log(`Skipping hint ${index}:`, { move, is_pass: hint.is_pass });
+      return;
+    }
+    
+    const [x, y] = move;
+    if (x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
+      return;
+    }
+    
+    const confidence = hint.confidence || 0;
+    const centerX = padding + x * cellSize + cellSize / 2;
+    const centerY = padding + y * cellSize + cellSize / 2;
+    
+    // Màu theo confidence
+    let bgColor = '#fbbf24'; // Vàng mặc định
+    if (confidence >= 0.7) {
+      bgColor = '#10b981'; // Xanh lá - tốt
+    } else if (confidence >= 0.5) {
+      bgColor = '#3b82f6'; // Xanh dương - trung bình
+    } else {
+      bgColor = '#f59e0b'; // Cam - thấp
+    }
+    
+    elements.push(
+      <g key={`hint-${index}`}>
+        <circle
+          cx={centerX}
+          cy={centerY}
+          r={cellSize * 0.35}
+          fill={bgColor}
+          fillOpacity={0.9}
+          stroke="white"
+          strokeWidth={2}
+        />
+        <text
+          x={centerX}
+          y={centerY}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="white"
+          fontSize={cellSize * 0.25}
+          fontWeight="bold"
+        >
+          {index + 1}
+        </text>
+        <text
+          x={centerX}
+          y={centerY + cellSize * 0.5}
+          textAnchor="middle"
+          dominantBaseline="top"
+          fill={bgColor}
+          fontSize={cellSize * 0.15}
+          fontWeight="600"
+        >
+          {Math.round(confidence * 100)}%
+        </text>
+      </g>
+    );
+  });
+  
+  return elements.length > 0 ? elements : null;
+};
+
+/**
+ * ============================================================================
+ * REVIEW VISUALIZATION HELPER FUNCTION
+ * ============================================================================
+ * Render review visualization trên board - hiển thị mistakes và key moments
+ */
+const renderReviewVisualization = (reviewData, cellSize, padding, boardSize) => {
+  console.log('renderReviewVisualization called:', { reviewData, cellSize, padding, boardSize });
+  
+  if (!reviewData) {
+    console.warn('renderReviewVisualization: No reviewData');
+    return null;
+  }
+  
+  if (!cellSize || cellSize <= 0 || !boardSize || boardSize <= 0) {
+    console.warn('renderReviewVisualization: Invalid dimensions', { cellSize, boardSize });
+    return null;
+  }
+  
+  const details = reviewData.details || reviewData;
+  if (!details || typeof details !== 'object') {
+    return null;
+  }
+  
+  const mistakes = details.mistakes || [];
+  const key_moments = details.key_moments || [];
+  
+  const elements = [];
+  
+  // Render mistakes (màu đỏ/cam)
+  mistakes.forEach((mistake, index) => {
+    if (!mistake.position || !Array.isArray(mistake.position)) {
+      return;
+    }
+    
+    const [x, y] = mistake.position;
+    if (x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
+      return;
+    }
+    
+    const centerX = padding + x * cellSize + cellSize / 2;
+    const centerY = padding + y * cellSize + cellSize / 2;
+    const severity = mistake.severity === 'major' ? '#ef4444' : '#f59e0b';
+    
+    elements.push(
+      <g key={`mistake-${index}`}>
+        <circle
+          cx={centerX}
+          cy={centerY}
+          r={cellSize * 0.3}
+          fill={severity}
+          fillOpacity={0.7}
+          stroke="white"
+          strokeWidth={2}
+        />
+        <text
+          x={centerX}
+          y={centerY}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="white"
+          fontSize={cellSize * 0.2}
+          fontWeight="bold"
+        >
+          ⚠
+        </text>
+        <text
+          x={centerX}
+          y={centerY + cellSize * 0.5}
+          textAnchor="middle"
+          dominantBaseline="top"
+          fill={severity}
+          fontSize={cellSize * 0.12}
+        >
+          #{mistake.move_number}
+        </text>
+      </g>
+    );
+  });
+  
+  // Render key moments (màu xanh/đỏ)
+  key_moments.forEach((moment, index) => {
+    if (!moment.position || !Array.isArray(moment.position)) {
+      return;
+    }
+    
+    const [x, y] = moment.position;
+    if (x < 0 || x >= boardSize || y < 0 || y >= boardSize) {
+      return;
+    }
+    
+    const centerX = padding + x * cellSize + cellSize / 2;
+    const centerY = padding + y * cellSize + cellSize / 2;
+    const color = moment.type === 'advantage_gain' ? '#10b981' : '#ef4444';
+    
+    elements.push(
+      <g key={`moment-${index}`}>
+        <circle
+          cx={centerX}
+          cy={centerY}
+          r={cellSize * 0.25}
+          fill={color}
+          fillOpacity={0.6}
+          stroke="white"
+          strokeWidth={2}
+          strokeDasharray="3,3"
+        />
+        <text
+          x={centerX}
+          y={centerY}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="white"
+          fontSize={cellSize * 0.18}
+          fontWeight="bold"
+        >
+          {moment.type === 'advantage_gain' ? '↑' : '↓'}
+        </text>
+        <text
+          x={centerX}
+          y={centerY + cellSize * 0.5}
+          textAnchor="middle"
+          dominantBaseline="top"
+          fill={color}
+          fontSize={cellSize * 0.12}
+        >
+          #{moment.move_number}
+        </text>
+      </g>
+    );
+  });
+  
+  return elements.length > 0 ? elements : null;
+};
+
 // NOTE: In Go, stones are placed on INTERSECTIONS (giao điểm), not in squares.
 // Each "cell" in this component represents an intersection point on the board.
-const Board = ({ boardSize = 9, stones = {}, onCellClick, lastMove = null, disabled = false, theme = 'classic' }) => {
+const Board = ({ boardSize = 9, stones = {}, onCellClick, lastMove = null, disabled = false, theme = 'classic', mlAnalysisData = null, mlVisualizationMode = 'threats', hints = null, reviewData = null, showHintsViz = false, showReviewViz = false }) => {
   const [hoverPos, setHoverPos] = useState(null)
   const boardRef = useRef(null)
   const [gridSize, setGridSize] = useState({ width: 0, height: 0 })
@@ -355,6 +933,12 @@ const Board = ({ boardSize = 9, stones = {}, onCellClick, lastMove = null, disab
             }}
           >
             {gridLines}
+            {/* ML Analysis Visualization Layer - render trực tiếp trong Board để đảm bảo khớp chính xác */}
+            {mlAnalysisData && actualCellSize > 0 && renderMLVisualization(mlAnalysisData, mlVisualizationMode, actualCellSize, padding, boardSize)}
+            {/* Hint Visualization Layer */}
+            {showHintsViz && hints && Array.isArray(hints) && hints.length > 0 && actualCellSize > 0 && renderHintVisualization(hints, actualCellSize, padding, boardSize)}
+            {/* Review Visualization Layer */}
+            {showReviewViz && reviewData && actualCellSize > 0 && renderReviewVisualization(reviewData, actualCellSize, padding, boardSize)}
           </svg>
         )}
         {/* Render grid cells - each cell represents an intersection point */}

@@ -57,6 +57,10 @@ COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./
 COPY backend/scripts ./scripts
+# Copy ML models (QUAN TRỌNG cho ML features)
+COPY backend/models ./models
+# Copy src/ml để import model classes (policy_network, value_network)
+COPY src/ml ./src/ml
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app

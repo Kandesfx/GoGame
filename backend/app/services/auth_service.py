@@ -74,13 +74,14 @@ class AuthService:
         return user
 
     def issue_tokens(self, user: user_model.User) -> Dict[str, str]:
+        now = datetime.now(tz=timezone.utc)
         refresh_id = str(uuid4())
         refresh_token = refresh_token_model.RefreshToken(
             id=refresh_id,
             user_id=user.id,
             token="",  # placeholder, cập nhật sau
-            expires_at=datetime.now(tz=timezone.utc)
-            + self._delta_from_days(self.settings.refresh_token_exp_days),
+            expires_at=now + self._delta_from_days(self.settings.refresh_token_exp_days),
+            last_activity_at=now,  # Set last activity khi tạo token mới
         )
 
         refresh_jwt = security.create_refresh_token(
@@ -131,8 +132,22 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked or rotated")
 
         # Extend refresh token expiration khi có activity (sliding session)
-        # QUAN TRỌNG: Luôn extend khi có request (không có điều kiện thời gian tối thiểu)
+        # QUAN TRỌNG: Chỉ extend nếu không quá inactivity timeout
         now = datetime.now(tz=timezone.utc)
+        
+        # Kiểm tra inactivity timeout: nếu last_activity_at quá cũ thì không extend
+        inactivity_timeout = self._delta_from_days(self.settings.session_inactivity_timeout_days)
+        last_activity = db_token.last_activity_at or db_token.expires_at - self._delta_from_days(self.settings.refresh_token_exp_days)
+        
+        if (now - last_activity) > inactivity_timeout:
+            # Đã quá inactivity timeout - không extend, revoke token
+            logger.info(f"⏱️ [AUTH] Session expired due to inactivity for user {payload['sub']}: last_activity={last_activity}, timeout={inactivity_timeout}")
+            db_token.revoked = True
+            self.db.commit()
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired due to inactivity")
+        
+        # Cập nhật last_activity_at khi refresh token được sử dụng
+        db_token.last_activity_at = now
         
         # Luôn extend thêm N ngày từ bây giờ (sliding window)
         new_expires_at = now + self._delta_from_days(self.settings.refresh_token_exp_days)
@@ -186,8 +201,12 @@ class AuthService:
         """Extend refresh token expiration nếu user đang active (có request).
         
         Sliding session: Mỗi khi có request, extend thêm N ngày từ bây giờ.
-        Chỉ extend nếu refresh token còn hạn (chưa expired).
-        KHÔNG có điều kiện thời gian tối thiểu - extend ngay khi có request.
+        Chỉ extend nếu:
+        1. Refresh token còn hạn (chưa expired)
+        2. Không quá inactivity timeout (có request trong thời gian gần đây)
+        
+        QUAN TRỌNG: Session chỉ hết hạn khi không có request trong inactivity_timeout_days.
+        Backend hoàn toàn kiểm soát - UI không cần can thiệp.
         """
         import time
         import logging
@@ -213,7 +232,28 @@ class AuthService:
             # Không có token active - không làm gì (user sẽ phải login lại)
             return
         
-        # QUAN TRỌNG: Luôn extend khi có request (không có điều kiện thời gian tối thiểu)
+        # Kiểm tra inactivity timeout
+        inactivity_timeout = self._delta_from_days(self.settings.session_inactivity_timeout_days)
+        last_activity = active_token.last_activity_at
+        
+        if last_activity is None:
+            # Token cũ không có last_activity_at - tính từ expires_at ngược lại
+            # Giả sử token được tạo cách đây refresh_token_exp_days
+            last_activity = active_token.expires_at - self._delta_from_days(self.settings.refresh_token_exp_days)
+        
+        time_since_last_activity = now - last_activity
+        
+        if time_since_last_activity > inactivity_timeout:
+            # Đã quá inactivity timeout - revoke token và không extend
+            logger.info(f"⏱️ [AUTH] Session expired due to inactivity for user {user_id}: "
+                       f"last_activity={last_activity}, inactivity_timeout={inactivity_timeout.days} days")
+            active_token.revoked = True
+            self.db.commit()
+            return  # Không extend, user sẽ phải login lại khi access token hết hạn
+        
+        # Cập nhật last_activity_at
+        active_token.last_activity_at = now
+        
         # Extend thêm N ngày từ bây giờ (sliding window)
         new_expires_at = now + self._delta_from_days(self.settings.refresh_token_exp_days)
         active_token.expires_at = new_expires_at

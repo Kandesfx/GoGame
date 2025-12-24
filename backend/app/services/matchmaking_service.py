@@ -280,10 +280,11 @@ class MatchmakingService:
                     # Tạo matches TRƯỚC KHI remove khỏi queue để đảm bảo match được tạo thành công
                     # Nếu match creation fail, entries vẫn còn trong queue
                     matched_entries = []
-                    for i, j in sorted(matched_pairs, reverse=True):
+                    for i, j in matched_pairs:  # Không cần sort khi lấy entries
                         # Lấy entries nhưng chưa pop khỏi queue
-                        entry1 = queue[max(i, j)]
-                        entry2 = queue[min(i, j)]
+                        # Sửa lỗi: dùng i và j trực tiếp thay vì max/min
+                        entry1 = queue[i]
+                        entry2 = queue[j]
                         
                         # Final validation: đảm bảo board_size khớp
                         if entry1.board_size != entry2.board_size or entry1.board_size != board_size:
@@ -334,10 +335,18 @@ class MatchmakingService:
                     import time
                     time.sleep(0.2)  # Wait 200ms để đảm bảo match đã commit
                     
-                    for i, j in sorted(successful_matches, reverse=True):
-                        queue.pop(max(i, j))
-                        queue.pop(min(i, j))
-                        logger.info(f"Removed matched players from queue after match creation")
+                    # Collect all indices to remove, then remove from largest to smallest
+                    # to avoid index shifting issues
+                    indices_to_remove = set()
+                    for i, j in successful_matches:
+                        indices_to_remove.add(i)
+                        indices_to_remove.add(j)
+                    
+                    # Remove in descending order to avoid index shifting
+                    for idx in sorted(indices_to_remove, reverse=True):
+                        if idx < len(queue):  # Safety check
+                            entry = queue.pop(idx)
+                            logger.info(f"Removed matched player {entry.user_id} from queue")
                     
                     # Remove timed out entries
                     now = datetime.now(timezone.utc)

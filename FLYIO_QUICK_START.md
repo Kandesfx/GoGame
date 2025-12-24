@@ -75,5 +75,11 @@ fly ssh console -a gogame-backend
 fly secrets list -a gogame-backend
 ```
 
-Xem hướng dẫn chi tiết: `docs/DEPLOY_FLYIO.md`
+## 📚 Tài liệu chi tiết
+
+Xem [DEPLOY_FLYIO.md](../DEPLOY_FLYIO.md) để biết hướng dẫn đầy đủ với:
+- Hướng dẫn từng bước chi tiết
+- Troubleshooting đầy đủ
+- Quản lý sau khi deploy
+- Monitoring và scaling
 

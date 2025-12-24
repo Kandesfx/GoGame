@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import axios from 'axios'
 import PropTypes from 'prop-types'
 import { FaCircle, FaTimes, FaCopy, FaCheck } from 'react-icons/fa'
@@ -16,8 +16,12 @@ import ShopDialog from './ShopDialog'
 import PremiumDialog from './PremiumDialog'
 import TransactionHistory from './TransactionHistory'
 import PremiumFeatures from './PremiumFeatures'
+import MLAnalysisPanel from './MLAnalysisPanel'
+import MLAnalysisOverlay from './MLAnalysisOverlay'
+import AnalysisPanel from './AnalysisPanel'
+import ReviewPanel from './ReviewPanel'
 import api from '../services/api'
-import { playStoneSound, resetStoneSoundCounter } from '../utils/sound'
+import { playStoneSound, playCaptureSound, resetStoneSoundCounter } from '../utils/sound'
 import './MainWindow.css'
 
 // Force reload v2
@@ -75,32 +79,19 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
   const [showShopDialog, setShowShopDialog] = useState(false)
   const [showPremiumDialog, setShowPremiumDialog] = useState(false)
   const [showTransactionHistory, setShowTransactionHistory] = useState(false)
-  const [showGameOverModal, setShowGameOverModal] = useState(false); // Control game over modal
-  const [gameOverMessage, setGameOverMessage] = useState(null); // Game over message to display
-  const [finalElo, setFinalElo] = useState(null); // ELO cuối trận đấu
-  const [eloChange, setEloChange] = useState(null); // ELO change từ trận đấu
-  const [gameScoreDetails, setGameScoreDetails] = useState(null); // Chi tiết điểm số: {stonesBlack, stonesWhite, territoryBlack, territoryWhite, komi}
-  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem("goGameSettings");
-    return saved
-      ? JSON.parse(saved)
-      : {
-          soundEnabled: true,
-          showCoordinates: true,
-          showLastMove: true,
-          boardTheme: "classic",
-          animationSpeed: "normal",
-        };
-  });
-  const [roomCodeCopied, setRoomCodeCopied] = useState(false);
-  const [showPlayerColorModal, setShowPlayerColorModal] = useState(false); // Modal thông báo màu quân cờ
-  const [playerColor, setPlayerColor] = useState(null); // 'B' hoặc 'W'
-  const [showKoDialog, setShowKoDialog] = useState(false); // Dialog thông báo tình trạng cướp cờ KO
-  const [koPosition, setKoPosition] = useState(null) // Vị trí KO hiện tại
-  const [previousKoPosition, setPreviousKoPosition] = useState(null) // Vị trí KO trước đó để detect thay đổi
-  const [showOpponentPassDialog, setShowOpponentPassDialog] = useState(false) // Dialog thông báo đối phương bỏ lượt
-  const [opponentPassMessage, setOpponentPassMessage] = useState('') // Nội dung thông báo bỏ lượt
+  const [showMLAnalysis, setShowMLAnalysis] = useState(false)
+  const [mlAnalysisData, setMlAnalysisData] = useState(null) // Data cho visualization
+  const [showMLVisualization, setShowMLVisualization] = useState(false) // Toggle visualization
+  const [mlVisualizationMode, setMlVisualizationMode] = useState('threats') // 'threats', 'attacks', 'intent'
+  const [mlVizDescriptionExpanded, setMlVizDescriptionExpanded] = useState(true) // State để thu gọn/mở rộng panel mô tả
+  const [showAnalysis, setShowAnalysis] = useState(false) // Toggle analysis panel (evaluation only)
+  const [analysisData, setAnalysisData] = useState(null) // Analysis data (evaluation + bestMove)
+  const [hints, setHints] = useState([]) // Hints từ premium feature
+  const [showHintsViz, setShowHintsViz] = useState(false) // Toggle hints visualization
+  const [reviewData, setReviewData] = useState(null) // Review data từ premium feature
+  const [showReview, setShowReview] = useState(false) // Toggle review panel
+  const [showReviewViz, setShowReviewViz] = useState(false) // Toggle review visualization
+  const boardRef = useRef(null) // Ref cho Board component
 
   // Debug: Log dialog state changes
   useEffect(() => {
@@ -111,6 +102,93 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       );
     }
   }, [showMatchDialog]);
+
+  // Xử lý phím ESC để đóng tất cả overlay/dialog
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        // Đóng tất cả dialog/overlay theo thứ tự ưu tiên
+        if (showGameOverModal) {
+          setShowGameOverModal(false);
+          event.preventDefault();
+          return;
+        }
+        if (showMLAnalysis) {
+          setShowMLAnalysis(false);
+          event.preventDefault();
+          return;
+        }
+        if (showPlayerColorModal) {
+          setShowPlayerColorModal(false);
+          event.preventDefault();
+          return;
+        }
+        if (showOpponentPassDialog) {
+          setShowOpponentPassDialog(false);
+          event.preventDefault();
+          return;
+        }
+        if (showKoDialog) {
+          setShowKoDialog(false);
+          event.preventDefault();
+          return;
+        }
+        if (showMatchDialog) {
+          setShowMatchDialog(false);
+          event.preventDefault();
+          return;
+        }
+        if (showSettingsDialog) {
+          setShowSettingsDialog(false);
+          event.preventDefault();
+          return;
+        }
+        if (showShopDialog) {
+          setShowShopDialog(false);
+          event.preventDefault();
+          return;
+        }
+        if (showPremiumDialog) {
+          setShowPremiumDialog(false);
+          event.preventDefault();
+          return;
+        }
+        if (showTransactionHistory) {
+          setShowTransactionHistory(false);
+          event.preventDefault();
+          return;
+        }
+        if (showAnalysis) {
+          setShowAnalysis(false);
+          event.preventDefault();
+          return;
+        }
+        if (showReview) {
+          setShowReview(false);
+          event.preventDefault();
+          return;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [
+    showGameOverModal,
+    showMLAnalysis,
+    showPlayerColorModal,
+    showOpponentPassDialog,
+    showKoDialog,
+    showMatchDialog,
+    showSettingsDialog,
+    showShopDialog,
+    showPremiumDialog,
+    showTransactionHistory,
+    showAnalysis,
+    showReview
+  ]);
 
   // Hiển thị dialog khi đối phương (AI hoặc người chơi khác) bỏ lượt
   useEffect(() => {
@@ -464,7 +542,6 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
           console.error("Failed to load final ELO:", err);
         }
       }
-<<<<<<< HEAD
       
       // Load coin balance để hiển thị coin earned (nếu có)
       try {
@@ -479,9 +556,6 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       // Dispatch event để CoinDisplay tự động cập nhật
       window.dispatchEvent(new CustomEvent('coinBalanceUpdated'))
       
-=======
-
->>>>>>> origin/Phu2Branch
       // Hiển thị modal game over
       setTimeout(() => {
         setShowGameOverModal(true);
@@ -1012,31 +1086,50 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
     }
 
     setIsProcessing(true);
-    try {
-      // QUAN TRỌNG: Sử dụng currentPlayer từ state thay vì tính từ số lượng stones
-      // Vì số lượng stones có thể không phản ánh đúng số move (do captured stones)
-      const color = boardState.currentPlayer || "B";
-      // Sử dụng moveHistory.length để tính moveNumber chính xác (bao gồm cả pass moves)
-      const moveNumber = moveHistory.length + 1;
+    
+    // QUAN TRỌNG: Sử dụng currentPlayer từ state thay vì tính từ số lượng stones
+    // Vì số lượng stones có thể không phản ánh đúng số move (do captured stones)
+    const color = boardState.currentPlayer || "B";
+    // Sử dụng moveHistory.length để tính moveNumber chính xác (bao gồm cả pass moves)
+    const moveNumber = moveHistory.length + 1;
 
-      console.log("🎯 Making move:", {
-        x,
-        y,
-        color,
-        moveNumber,
-        currentPlayer: boardState.currentPlayer,
-        currentStonesCount: Object.keys(boardState.stones).length,
-        moveHistoryLength: moveHistory.length,
-      });
+    console.log("🎯 Making move:", {
+      x,
+      y,
+      color,
+      moveNumber,
+      currentPlayer: boardState.currentPlayer,
+      currentStonesCount: Object.keys(boardState.stones).length,
+      moveHistoryLength: moveHistory.length,
+    });
 
-      // Phát âm thanh đánh cờ (nếu bật)
-      if (settings.soundEnabled) {
+    // Phát âm thanh đánh cờ (nếu bật)
+    // Sử dụng setTimeout để đảm bảo sound được phát bất kể có alert hay không
+    // Điều này giúp tránh việc alert làm gián đoạn audio
+    if (settings.soundEnabled) {
+      setTimeout(() => {
         playStoneSound("/assets/zz-un-floor-goban-rich.v7.webm", true);
-      }
+      }, 0);
+    }
 
-      // Không cần optimistic update nữa vì sẽ dùng board_diff từ response
-      // Optimistic update có thể conflict với captured stones
+    // OPTIMISTIC UPDATE: Hiển thị quân của người chơi ngay lập tức để trải nghiệm mượt mà
+    const moveKey = `${x},${y}`;
+    // Lưu state trước khi optimistic update để có thể rollback nếu có lỗi
+    const previousBoardState = { ...boardState };
+    
+    setBoardState((prev) => {
+      // Chỉ thêm quân user, không xử lý captured stones (sẽ được xử lý từ response)
+      const optimisticStones = { ...prev.stones };
+      optimisticStones[moveKey] = color;
+      
+      return {
+        ...prev,
+        stones: optimisticStones,
+        lastMove: { x, y },
+      };
+    });
 
+    try {
       // Dùng api instance chung (có interceptor refresh token)
       // Set timeout riêng cho request này (AI có thể mất nhiều thời gian)
       const response = await api.post(
@@ -1048,7 +1141,9 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
           color,
         },
         {
-          timeout: 60000, // 60 seconds for AI moves
+          // Timeout động: tăng cho chế độ khó hơn
+          // Level 4 (siêu khó) có thể cần đến 90 giây
+          timeout: 90000, // 90 seconds for AI moves (tăng từ 60 để hỗ trợ chế độ siêu khó)
         }
       );
 
@@ -1066,6 +1161,24 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
       // Xử lý captured stones và board_diff từ response
       const moveData = response.data;
       const moveKey = `${x},${y}`;
+
+      // Kiểm tra xem có captured stones không để phát sound
+      const hasCapturedStones = 
+        (moveData.board_diff && 
+         moveData.board_diff.removed && 
+         Array.isArray(moveData.board_diff.removed) && 
+         moveData.board_diff.removed.length > 0) ||
+        (moveData.captured && 
+         Array.isArray(moveData.captured) && 
+         moveData.captured.length > 0);
+
+      // Phát sound capture nếu có quân bị ăn (sau khi xử lý state để tránh bị alert làm gián đoạn)
+      if (hasCapturedStones && settings.soundEnabled) {
+        // Sử dụng setTimeout để đảm bảo sound được phát sau khi alert (nếu có) được xử lý
+        setTimeout(() => {
+          playCaptureSound("/assets/zz-un-effects.v7.webm", true);
+        }, 0);
+      }
 
       // ĐƠN GIẢN HÓA: Chỉ dùng board_diff để biết vị trí thêm/xóa, KHÔNG dùng màu từ backend
       // Luôn force màu đúng: user = currentPlayer (Black trong AI match)
@@ -1193,9 +1306,22 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Phát âm thanh đánh cờ cho AI move (nếu bật và không phải pass)
+        // Sử dụng setTimeout để đảm bảo sound được phát bất kể có alert hay không
         if (settings.soundEnabled && !aiMove.is_pass) {
-          playStoneSound("/assets/zz-un-floor-goban-rich.v7.webm", true);
+          setTimeout(() => {
+            playStoneSound("/assets/zz-un-floor-goban-rich.v7.webm", true);
+          }, 0);
         }
+
+        // Kiểm tra xem AI có ăn quân không để phát sound capture
+        const aiHasCapturedStones = 
+          (aiMove.board_diff && 
+           aiMove.board_diff.removed && 
+           Array.isArray(aiMove.board_diff.removed) && 
+           aiMove.board_diff.removed.length > 0) ||
+          (aiMove.captured && 
+           Array.isArray(aiMove.captured) && 
+           aiMove.captured.length > 0);
 
         // Cập nhật board với AI move
         // ĐƠN GIẢN HÓA: Chỉ dùng board_diff để biết vị trí, LUÔN force màu 'W' cho AI
@@ -1261,6 +1387,13 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
                 : prev.lastMove,
           };
         });
+
+        // Phát sound capture nếu AI có ăn quân (sau khi xử lý state)
+        if (aiHasCapturedStones && settings.soundEnabled) {
+          setTimeout(() => {
+            playCaptureSound("/assets/zz-un-effects.v7.webm", true);
+          }, 100); // Delay nhỏ để đảm bảo sound đánh quân đã phát xong
+        }
 
         // Xác định màu AI cho move history
         const aiColorForHistory = currentMatch.black_player_id ? "W" : "B";
@@ -1387,17 +1520,8 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
         code: error.code,
       });
 
-      // Revert optimistic update on error (nếu có)
-      const key = `${x},${y}`;
-      if (boardState.stones[key]) {
-        const revertedStones = { ...boardState.stones };
-        delete revertedStones[key];
-        setBoardState((prev) => ({
-          ...prev,
-          stones: revertedStones,
-          lastMove: prev.lastMove,
-        }));
-      }
+      // Revert optimistic update on error - rollback về state trước khi đánh
+      setBoardState(previousBoardState);
 
       if (error.response?.status === 401) {
         console.error("🔓 401 Unauthorized - Token expired or invalid");
@@ -1558,9 +1682,22 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Phát âm thanh đánh cờ cho AI move sau pass (nếu bật và không phải pass)
+        // Sử dụng setTimeout để đảm bảo sound được phát bất kể có alert hay không
         if (settings.soundEnabled && !aiMove.is_pass) {
-          playStoneSound("/assets/zz-un-floor-goban-rich.v7.webm", true);
+          setTimeout(() => {
+            playStoneSound("/assets/zz-un-floor-goban-rich.v7.webm", true);
+          }, 0);
         }
+
+        // Kiểm tra xem AI có ăn quân không để phát sound capture
+        const aiHasCapturedStonesPass = 
+          (aiMove.board_diff && 
+           aiMove.board_diff.removed && 
+           Array.isArray(aiMove.board_diff.removed) && 
+           aiMove.board_diff.removed.length > 0) ||
+          (aiMove.captured && 
+           Array.isArray(aiMove.captured) && 
+           aiMove.captured.length > 0);
 
         // Cập nhật board với AI move
         setBoardState((prev) => {
@@ -1625,6 +1762,13 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
                 : prev.lastMove,
           };
         });
+
+        // Phát sound capture nếu AI có ăn quân sau pass (sau khi xử lý state)
+        if (aiHasCapturedStonesPass && settings.soundEnabled) {
+          setTimeout(() => {
+            playCaptureSound("/assets/zz-un-effects.v7.webm", true);
+          }, 100); // Delay nhỏ để đảm bảo sound đánh quân đã phát xong
+        }
 
         // Xác định màu AI cho move history (after pass)
         const aiColorHistoryPass = currentMatch.black_player_id ? "W" : "B";
@@ -2345,12 +2489,6 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             onPass={handlePass}
             onResign={handleResign}
             onUndo={handleUndo}
-<<<<<<< HEAD
-=======
-            onHint={() => alert("Tính năng gợi ý - sắp ra mắt")}
-            onAnalysis={() => alert("Tính năng phân tích - sắp ra mắt")}
-            onReview={() => alert("Tính năng xem lại - sắp ra mắt")}
->>>>>>> origin/Phu2Branch
             disabled={isProcessing || gameOver}
             undoDisabled={!currentMatch || moveHistory.length === 0}
           />
@@ -2362,32 +2500,250 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
               disabled={isProcessing || gameOver}
               onHintReceived={(hints) => {
                 console.log('Hint received:', hints)
-                // Có thể highlight các vị trí gợi ý trên board
+                setHints(hints || [])
+                setShowHintsViz(true) // Tự động hiển thị visualization
               }}
               onAnalysisReceived={(analysis) => {
-                console.log('Analysis received:', analysis)
-                // Hiển thị kết quả phân tích
+                console.log('Analysis received (evaluation only):', analysis)
+                // Mở AnalysisPanel để hiển thị evaluation (đánh giá chiến lược)
+                if (analysis && analysis.evaluation) {
+                  setAnalysisData({
+                    evaluation: analysis.evaluation,
+                    bestMove: analysis.bestMove
+                  })
+                  setShowAnalysis(true) // Mở popup phân tích (evaluation only)
+                }
               }}
               onReviewReceived={(review) => {
-                console.log('Review received:', review)
-                // Hiển thị kết quả review
+                try {
+                  console.log('Review received:', review)
+                  if (!review) {
+                    console.warn('Review received but data is null/undefined')
+                    return
+                  }
+                  setReviewData(review)
+                  setShowReview(true)
+                  setShowReviewViz(true) // Tự động hiển thị visualization
+                } catch (error) {
+                  console.error('Error handling review data:', error)
+                  alert('❌ Có lỗi khi xử lý dữ liệu review. Vui lòng thử lại.')
+                }
               }}
             />
+          )}
+
+          {/* ML Analysis Button */}
+          {currentMatch && !gameOver && (
+            <button
+              className="ml-analysis-trigger-btn"
+              onClick={() => setShowMLAnalysis(true)}
+              disabled={isProcessing}
+              title="Phân tích AI vị trí hiện tại (50 coins)"
+            >
+              <span className="ml-analysis-trigger-icon">🧠</span>
+              <span className="ml-analysis-trigger-text">Phân tích AI</span>
+            </button>
+          )}
+          
+          {/* ML Visualization Toggle Button (khi có analysis data) */}
+          {showMLVisualization && mlAnalysisData && (
+            <>
+              <div className="ml-visualization-controls">
+                <div className="ml-viz-controls-header">
+                  <h4 className="ml-viz-controls-title">🎨 Visualization</h4>
+                  <button
+                    className="ml-viz-toggle-btn"
+                    onClick={() => {
+                      setShowMLVisualization(false);
+                      setMlAnalysisData(null);
+                    }}
+                    title="Ẩn visualization"
+                  >
+                    👁️‍🗨️ Ẩn
+                  </button>
+                </div>
+                
+                <button
+                  className="ml-viz-details-btn"
+                  onClick={() => {
+                    setShowMLAnalysis(true); // Mở lại popup chi tiết
+                  }}
+                  title="Xem chi tiết phân tích"
+                >
+                  📋 Chi tiết
+                </button>
+                
+                <div className="ml-viz-mode-selector">
+                  <button
+                    className={`ml-viz-mode-btn ${mlVisualizationMode === 'threats' ? 'active' : ''}`}
+                    onClick={() => setMlVisualizationMode('threats')}
+                    title="Mối đe dọa"
+                  >
+                    🔴
+                  </button>
+                  <button
+                    className={`ml-viz-mode-btn ${mlVisualizationMode === 'attacks' ? 'active' : ''}`}
+                    onClick={() => setMlVisualizationMode('attacks')}
+                    title="Cơ hội tấn công"
+                  >
+                    ⚔️
+                  </button>
+                  <button
+                    className={`ml-viz-mode-btn ${mlVisualizationMode === 'intent' ? 'active' : ''}`}
+                    onClick={() => setMlVisualizationMode('intent')}
+                    title="Ý định"
+                  >
+                    🎯
+                  </button>
+                </div>
+              </div>
+              
+              {/* Panel mô tả chức năng - có thể thu gọn */}
+              <div className={`ml-viz-description-panel ${mlVizDescriptionExpanded ? 'expanded' : 'collapsed'}`}>
+                <div className="ml-viz-description-header">
+                  <h4 className="ml-viz-description-title">📖 Hướng dẫn</h4>
+                  <button
+                    className="ml-viz-description-toggle"
+                    onClick={() => setMlVizDescriptionExpanded(!mlVizDescriptionExpanded)}
+                    title={mlVizDescriptionExpanded ? 'Thu gọn' : 'Mở rộng'}
+                  >
+                    {mlVizDescriptionExpanded ? '▼' : '▶'}
+                  </button>
+                </div>
+                {mlVizDescriptionExpanded && (
+                <div className="ml-viz-description-content">
+                  {mlVisualizationMode === 'threats' && (
+                    <div className="ml-viz-description-section">
+                      <h5 className="ml-viz-description-subtitle">🔴 Mối đe dọa</h5>
+                      <p className="ml-viz-description-text">
+                        Hiển thị các nhóm quân của bạn đang bị đe dọa bởi đối thủ.
+                      </p>
+                      <ul className="ml-viz-description-list">
+                        <li><span className="ml-viz-legend-item" style={{color: '#ef4444'}}>●</span> <strong>Đỏ đậm:</strong> Nguy hiểm cao (Atari - chỉ còn 1 liberty)</li>
+                        <li><span className="ml-viz-legend-item" style={{color: '#f97316'}}>●</span> <strong>Cam:</strong> Nguy hiểm trung bình (2 liberties)</li>
+                        <li><span className="ml-viz-legend-item" style={{color: '#eab308'}}>●</span> <strong>Vàng:</strong> Cần chú ý (nhóm yếu)</li>
+                        <li><span className="ml-viz-legend-item">⚠️</span> <strong>Box đứt nét:</strong> Nhóm quân bị đe dọa</li>
+                      </ul>
+                      <p className="ml-viz-description-note">
+                        💡 <strong>Lưu ý:</strong> Chỉ quân thực sự bị đe dọa (ít liberties) mới được đánh dấu.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {mlVisualizationMode === 'attacks' && (
+                    <div className="ml-viz-description-section">
+                      <h5 className="ml-viz-description-subtitle">⚔️ Cơ hội tấn công</h5>
+                      <p className="ml-viz-description-text">
+                        Hiển thị các vị trí bạn có thể tấn công đối thủ.
+                      </p>
+                      <ul className="ml-viz-description-list">
+                        <li><span className="ml-viz-legend-item" style={{color: '#22c55e'}}>●</span> <strong>Xanh lá:</strong> Cơ hội tốt (confidence &gt; 70%)</li>
+                        <li><span className="ml-viz-legend-item" style={{color: '#3b82f6'}}>●</span> <strong>Xanh dương:</strong> Cơ hội trung bình (40-70%)</li>
+                        <li><span className="ml-viz-legend-item" style={{color: '#93c5fd'}}>●</span> <strong>Xanh nhạt:</strong> Cơ hội thấp (20-40%)</li>
+                        <li><span className="ml-viz-legend-item">⬇️</span> <strong>Mũi tên:</strong> Vị trí nên đánh</li>
+                      </ul>
+                      <p className="ml-viz-description-note">
+                        💡 <strong>Lưu ý:</strong> Màu càng đậm = cơ hội tấn công càng tốt.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {mlVisualizationMode === 'intent' && (
+                    <div className="ml-viz-description-section">
+                      <h5 className="ml-viz-description-subtitle">🎯 Ý định chiến lược</h5>
+                      <p className="ml-viz-description-text">
+                        Hiển thị ý định của AI - nơi AI muốn đánh tiếp theo.
+                      </p>
+                      <ul className="ml-viz-description-list">
+                        <li><span className="ml-viz-legend-item" style={{color: '#a855f7'}}>●</span> <strong>Tím:</strong> Vùng có policy cao (AI muốn đánh)</li>
+                        <li><span className="ml-viz-legend-item">💜</span> <strong>Màu càng đậm:</strong> Xác suất đánh càng cao</li>
+                      </ul>
+                      <p className="ml-viz-description-note">
+                        💡 <strong>Lưu ý:</strong> Đây là dự đoán nước đi tiếp theo của AI dựa trên Policy Network.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                )}
+              </div>
+            </>
+          )}
+          
+          {/* Hints Visualization Controls */}
+          {showHintsViz && hints && hints.length > 0 && (
+            <div className="ml-visualization-controls" style={{ top: showMLVisualization ? '200px' : '20px' }}>
+              <div className="ml-viz-controls-header">
+                <h4 className="ml-viz-controls-title">💡 Gợi ý</h4>
+                <button
+                  className="ml-viz-toggle-btn"
+                  onClick={() => setShowHintsViz(false)}
+                  title="Ẩn gợi ý"
+                >
+                  👁️‍🗨️ Ẩn
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {/* Review Visualization Controls */}
+          {showReviewViz && reviewData && (
+            <div className="ml-visualization-controls" style={{ top: (showMLVisualization ? 200 : 0) + (showHintsViz ? 100 : 0) + 'px' }}>
+              <div className="ml-viz-controls-header">
+                <h4 className="ml-viz-controls-title">📊 Review</h4>
+                <button
+                  className="ml-viz-toggle-btn"
+                  onClick={() => setShowReviewViz(false)}
+                  title="Ẩn review"
+                >
+                  👁️‍🗨️ Ẩn
+                </button>
+              </div>
+              <button
+                className="ml-viz-details-btn"
+                onClick={() => setShowReview(true)}
+                title="Xem chi tiết review"
+              >
+                📋 Chi tiết
+              </button>
+            </div>
           )}
         </div>
 
         {/* Center - Board */}
         <div className="center-panel">
-          <div className="board-wrapper">
+          <div className="board-wrapper" ref={boardRef}>
             {currentMatch ? (
-              <Board
-                boardSize={boardState.boardSize}
-                stones={boardState.stones}
-                onCellClick={handleBoardClick}
-                lastMove={boardState.lastMove}
-                disabled={isProcessing || gameOver}
-                theme={settings.boardTheme}
-              />
+              <>
+                <Board
+                  hints={showHintsViz ? hints : null}
+                  reviewData={showReviewViz ? reviewData : null}
+                  showHintsViz={showHintsViz}
+                  showReviewViz={showReviewViz}
+                  boardSize={boardState.boardSize}
+                  stones={boardState.stones}
+                  onCellClick={handleBoardClick}
+                  lastMove={boardState.lastMove}
+                  disabled={isProcessing || gameOver}
+                  theme={settings.boardTheme}
+                  mlAnalysisData={showMLVisualization ? mlAnalysisData : null}
+                  mlVisualizationMode={mlVisualizationMode}
+                />
+                {/* Hint và Review visualization đã được tích hợp vào Board component */}
+                {/* ML Analysis Visualization - Đã được render trực tiếp trong Board component */}
+                {/* Không cần MLAnalysisOverlay riêng nữa vì đã render trong Board */}
+                {/* Notification khi visualization hiển thị - chỉ hiển thị khi popup đóng */}
+                {showMLVisualization && mlAnalysisData && !showMLAnalysis && (
+                  <div className="ml-viz-notification">
+                    <div className="ml-viz-notification-content">
+                      <span className="ml-viz-notification-icon">👁️</span>
+                      <span className="ml-viz-notification-text">
+                        Đang hiển thị: {mlVisualizationMode === 'threats' ? 'Mối đe dọa' : 
+                                       mlVisualizationMode === 'attacks' ? 'Cơ hội tấn công' : 'Ý định'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="no-match-message">
                 <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>
@@ -2482,6 +2838,58 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
         isOpen={showTransactionHistory}
         onClose={() => setShowTransactionHistory(false)}
       />
+
+      {/* ML Analysis Panel */}
+      {showMLAnalysis && currentMatch && (
+        <div
+          className="ml-analysis-overlay"
+          onClick={() => setShowMLAnalysis(false)}
+        >
+          <div
+            className="ml-analysis-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MLAnalysisPanel
+              matchId={currentMatch.id || currentMatch.match_id || String(currentMatch.id)}
+              onClose={() => {
+                setShowMLAnalysis(false);
+                // KHÔNG tắt visualization khi đóng popup, để user vẫn có thể xem
+                // setShowMLVisualization(false);
+                // setMlAnalysisData(null);
+              }}
+              showVisualization={true}
+              onAnalysisReceived={(analysis) => {
+                console.log('ML Analysis received in MLAnalysisPanel:', analysis);
+                // Lưu data để hiển thị visualization trên board
+                if (analysis) {
+                  // ML analysis response có format: {threats, attacks, evaluation, intent, best_move}
+                  // Không có field 'details', data nằm trực tiếp trong analysis
+                  setMlAnalysisData(analysis);
+                  // Không tự động hiển thị visualization, để user chọn trong popup
+                  // setShowMLVisualization(true);
+                  // setMlVisualizationMode('threats');
+                }
+                // KHÔNG đóng popup - để user xem chi tiết trong popup
+                // Popup sẽ hiển thị chi tiết với các tabs
+              }}
+              onShowDetails={(analysis) => {
+                // Popup chi tiết sẽ được hiển thị trong MLAnalysisPanel
+                console.log('Show details for analysis:', analysis);
+                setMlAnalysisData(analysis); // Đảm bảo data được set
+              }}
+              onToggleVisualization={(mode) => {
+                // Hiển thị visualization và đóng popup
+                if (mode) {
+                  setMlVisualizationMode(mode);
+                }
+                setShowMLVisualization(true); // Hiển thị visualization
+                setShowMLAnalysis(false); // Đóng popup để xem visualization trên board
+              }}
+              initialAnalysis={mlAnalysisData} // Truyền data vào khi mở lại popup
+            />
+          </div>
+        </div>
+      )}
 
       {/* Opponent Pass Dialog */}
       {showOpponentPassDialog && (
@@ -2724,6 +3132,33 @@ const MainWindow = ({ onLogout, onBackToHome, initialMatch = null }) => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Analysis Panel - Đánh giá chiến lược (evaluation only) */}
+      {showAnalysis && analysisData && (
+        <AnalysisPanel
+          evaluation={analysisData.evaluation}
+          bestMove={analysisData.bestMove}
+          onClose={() => {
+            setShowAnalysis(false)
+            setAnalysisData(null)
+          }}
+        />
+      )}
+
+      {/* Review Panel */}
+      {showReview && reviewData && (
+        <ReviewPanel
+          review={reviewData}
+          onClose={() => {
+            setShowReview(false)
+            setReviewData(null)
+          }}
+          onMoveClick={(moveNumber, position) => {
+            // TODO: Navigate to specific move in game history
+            console.log('Navigate to move:', moveNumber, position)
+          }}
+        />
       )}
     </div>
   );

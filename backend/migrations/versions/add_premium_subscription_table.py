@@ -19,24 +19,29 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create premium_subscriptions table
-    op.create_table(
-        'premium_subscriptions',
-        sa.Column('id', postgresql.UUID(as_uuid=False), primary_key=True),
-        sa.Column('user_id', postgresql.UUID(as_uuid=False), nullable=False),
-        sa.Column('plan', sa.String(32), nullable=False),
-        sa.Column('status', sa.String(32), nullable=False, server_default='active'),
-        sa.Column('started_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('cancelled_at', sa.DateTime(timezone=True), nullable=True),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
-        sa.UniqueConstraint('user_id'),
-    )
+    # Create premium_subscriptions table (chỉ nếu chưa tồn tại)
+    connection = op.get_bind()
+    inspector = sa.inspect(connection)
+    tables = inspector.get_table_names()
     
-    # Create index on user_id
-    op.create_index('ix_premium_subscriptions_user_id', 'premium_subscriptions', ['user_id'])
+    if 'premium_subscriptions' not in tables:
+        op.create_table(
+            'premium_subscriptions',
+            sa.Column('id', postgresql.UUID(as_uuid=False), primary_key=True),
+            sa.Column('user_id', postgresql.UUID(as_uuid=False), nullable=False),
+            sa.Column('plan', sa.String(32), nullable=False),
+            sa.Column('status', sa.String(32), nullable=False, server_default='active'),
+            sa.Column('started_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('expires_at', sa.DateTime(timezone=True), nullable=False),
+            sa.Column('cancelled_at', sa.DateTime(timezone=True), nullable=True),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+            sa.UniqueConstraint('user_id'),
+        )
+        
+        # Create index on user_id
+        op.create_index('ix_premium_subscriptions_user_id', 'premium_subscriptions', ['user_id'])
 
 
 def downgrade() -> None:

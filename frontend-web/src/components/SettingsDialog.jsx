@@ -1,6 +1,11 @@
 import { useState } from 'react'
-import { FaTimes, FaCog, FaPalette, FaVolumeUp, FaVolumeMute, FaLanguage, FaChessBoard } from 'react-icons/fa'
+import { FaTimes, FaCog, FaPalette, FaVolumeUp, FaVolumeMute, FaLanguage, FaChessBoard, FaBook, FaExternalLinkAlt } from 'react-icons/fa'
 import './SettingsDialog.css'
+
+// Lấy API base URL
+const getApiBaseUrl = () => {
+  return import.meta.env.VITE_API_URL || 'http://localhost:8000'
+}
 
 const SettingsDialog = ({ isOpen, onClose, settings, onSettingsChange }) => {
   const [localSettings, setLocalSettings] = useState(settings || {
@@ -44,6 +49,26 @@ const SettingsDialog = ({ isOpen, onClose, settings, onSettingsChange }) => {
         </div>
 
         <div className="settings-content">
+          {/* Tài liệu API */}
+          <div className="settings-section">
+            <div className="settings-section-header">
+              <FaBook className="section-icon" />
+              <h3>Tài Liệu</h3>
+            </div>
+            <div className="settings-option">
+              <a
+                href={`${getApiBaseUrl()}/docs`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="settings-link"
+              >
+                <FaBook className="link-icon" />
+                <span>Tài liệu API (Swagger)</span>
+                <FaExternalLinkAlt className="external-icon" />
+              </a>
+            </div>
+          </div>
+
           {/* Âm thanh */}
           <div className="settings-section">
             <div className="settings-section-header">
@@ -124,6 +149,7 @@ const SettingsDialog = ({ isOpen, onClose, settings, onSettingsChange }) => {
               </select>
             </div>
           </div>
+
         </div>
 
         <div className="settings-footer">

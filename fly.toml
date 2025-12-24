@@ -9,11 +9,8 @@ primary_region = 'sin'
   dockerfile_context = '.'
 
 [deploy]
-  # Option 1: Dùng migrations (nếu đã có data)
-  # release_command = 'alembic upgrade head'
-  
-  # Option 2: Setup từ SQL script (fresh database, nhanh hơn)
-  release_command = 'python scripts/setup_database_fly.py || alembic upgrade head'
+  # Tạm thời tắt release_command (migrations sẽ chạy thủ công nếu cần)
+  # release_command = 'alembic -c /app/alembic.ini upgrade head'
 
 [env]
   DEBUG = 'false'
@@ -36,7 +33,7 @@ primary_region = 'sin'
     path = '/health'
 
 [[vm]]
-  memory = '512mb'
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 1
 

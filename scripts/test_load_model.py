@@ -30,9 +30,9 @@ def check_model_file(checkpoint_path: str):
     if not checkpoint_path.exists():
         print(f"❌ File không tồn tại: {checkpoint_path}")
         print(f"\n💡 Hướng dẫn:")
-        print(f"   1. Đảm bảo file model đã được đặt trong thư mục 'checkpoints/'")
+        print(f"   1. Đảm bảo file model đã được đặt trong thư mục 'backend/models/' hoặc 'checkpoints/'")
         print(f"   2. Kiểm tra tên file có đúng không")
-        print(f"   3. Xem thêm: checkpoints/HUONG_DAN_DAT_FILE.md")
+        print(f"   3. Xem thêm: backend/models/README.md hoặc checkpoints/HUONG_DAN_DAT_FILE.md")
         return False
     
     print(f"✅ File tồn tại: {checkpoint_path}")
@@ -122,26 +122,25 @@ def main():
     print("🧪 TEST LOAD MODEL")
     print("=" * 60)
     
-    # Tìm các file model có thể có
+    # Tìm các file model có thể có (ưu tiên backend/models/)
+    models_dir = project_root / 'backend' / 'models'
     checkpoints_dir = project_root / 'checkpoints'
     
-    if not checkpoints_dir.exists():
-        print(f"❌ Thư mục 'checkpoints/' không tồn tại!")
-        print(f"   Đang tạo thư mục...")
-        checkpoints_dir.mkdir(exist_ok=True)
-        print(f"✅ Đã tạo thư mục 'checkpoints/'")
-        print(f"\n💡 Hãy đặt file model (final_model.pt) vào thư mục này")
-        print(f"   Xem thêm: checkpoints/HUONG_DAN_DAT_FILE.md")
-        return
-    
-    # Tìm các file .pt trong checkpoints
-    model_files = list(checkpoints_dir.glob('*.pt'))
+    # Tìm model files ở cả hai nơi
+    model_files = []
+    if models_dir.exists():
+        model_files.extend(list(models_dir.glob('*.pt')))
+    if checkpoints_dir.exists():
+        model_files.extend(list(checkpoints_dir.glob('*.pt')))
     
     if not model_files:
-        print(f"❌ Không tìm thấy file model nào trong 'checkpoints/'")
-        print(f"\n💡 Hãy đặt file model (final_model.pt) vào thư mục:")
-        print(f"   {checkpoints_dir}")
-        print(f"   Xem thêm: checkpoints/HUONG_DAN_DAT_FILE.md")
+        print(f"❌ Không tìm thấy file model nào trong 'backend/models/' hoặc 'checkpoints/'")
+        print(f"\n💡 Hãy đặt file model (final_model.pt) vào một trong các thư mục:")
+        print(f"   1. {models_dir} (khuyến nghị - cho deploy)")
+        print(f"   2. {checkpoints_dir} (backward compatibility)")
+        print(f"\n📝 Xem thêm:")
+        print(f"   - backend/models/README.md")
+        print(f"   - checkpoints/HUONG_DAN_DAT_FILE.md")
         return
     
     print(f"\n📁 Tìm thấy {len(model_files)} file model:")

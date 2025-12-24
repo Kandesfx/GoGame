@@ -103,7 +103,23 @@ CREATE DATABASE gogame;
 alembic upgrade head
 ```
 
-### 5. Chạy Server
+### 5. Build C++ AI Engine (Tùy chọn - chỉ cần nếu muốn dùng AI)
+
+Nếu muốn sử dụng AI features, cần build module `gogame_py`:
+
+**Xem hướng dẫn chi tiết**: [`README_GOGAME_PY.md`](../README_GOGAME_PY.md)
+
+**Tóm tắt nhanh:**
+```bash
+# Trong MSYS2 MinGW 64-bit shell
+cd build
+cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+cmake --build . --target gogame_py
+```
+
+**⚠️ Lưu ý**: Module phải được build và đặt trong thư mục `build/` để backend nhận diện đúng.
+
+### 6. Chạy Server
 
 ```bash
 # Cách 1: Sử dụng script
@@ -178,6 +194,7 @@ gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ## 📚 Tài Liệu Thêm
 
 - [README.md](README.md) - Tài liệu chi tiết
+- [README_GOGAME_PY.md](../README_GOGAME_PY.md) - Hướng dẫn build C++ AI module
 - [scripts/README.md](scripts/README.md) - Hướng dẫn scripts
 - [docs/](../docs/) - Tài liệu deployment
 

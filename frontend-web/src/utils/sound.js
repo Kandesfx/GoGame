@@ -115,6 +115,96 @@ export const resetStoneSoundCounter = () => {
 }
 
 /**
+ * Phát âm thanh ăn quân (capture sound)
+ * File âm thanh dài 1 phút, chỉ phát 1.5 giây đầu tiên
+ * @param {string} soundFile - Đường dẫn đến file âm thanh (mặc định: zz-un-effects.v7.webm)
+ * @param {boolean} enabled - Có bật âm thanh không
+ */
+export const playCaptureSound = (soundFile = '/assets/zz-un-effects.v7.webm', enabled = true) => {
+  if (!enabled) {
+    return
+  }
+  
+  try {
+    // Tạo audio element mới mỗi lần để có thể phát nhiều âm thanh cùng lúc
+    const audio = new Audio(soundFile)
+    audio.currentTime = 0 // Bắt đầu từ đầu file
+    
+    // Biến để track timeout và cleanup
+    let timeoutId = null
+    let timeUpdateHandler = null
+    let isStopped = false
+    
+    // Thời lượng phát: 1.5 giây
+    const CAPTURE_SOUND_DURATION = 1.5
+    
+    // Hàm cleanup để dừng và xóa audio
+    const stopAndCleanup = () => {
+      if (isStopped) return
+      isStopped = true
+      
+      try {
+        audio.pause()
+        audio.currentTime = 0
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
+        if (timeUpdateHandler) {
+          audio.removeEventListener('timeupdate', timeUpdateHandler)
+          timeUpdateHandler = null
+        }
+        audio.remove()
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+    
+    // Lắng nghe timeupdate để dừng đúng thời điểm (1.5 giây)
+    timeUpdateHandler = () => {
+      if (audio.currentTime >= CAPTURE_SOUND_DURATION || audio.currentTime >= audio.duration) {
+        stopAndCleanup()
+      }
+    }
+    audio.addEventListener('timeupdate', timeUpdateHandler)
+    
+    // Backup: dừng sau 1.5 giây (fallback nếu timeupdate không hoạt động)
+    timeoutId = setTimeout(() => {
+      stopAndCleanup()
+    }, CAPTURE_SOUND_DURATION * 1000)
+    
+    // Phát âm thanh
+    const playPromise = audio.play()
+    
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          // Audio đã bắt đầu phát, timeout và timeupdate sẽ tự động dừng sau 1.5 giây
+        })
+        .catch(error => {
+          // Nếu autoplay bị chặn, cleanup ngay
+          console.warn('⚠️ Autoplay prevented for capture sound:', error)
+          stopAndCleanup()
+        })
+    }
+    
+    // Cleanup nếu có lỗi
+    audio.addEventListener('error', (e) => {
+      console.warn('⚠️ Error playing capture sound:', e)
+      stopAndCleanup()
+    })
+    
+    // Cleanup khi audio kết thúc (fallback)
+    audio.addEventListener('ended', () => {
+      stopAndCleanup()
+    })
+    
+  } catch (error) {
+    console.warn('⚠️ Error in playCaptureSound:', error)
+  }
+}
+
+/**
  * Kiểm tra xem file âm thanh có tồn tại không
  */
 export const checkSoundFile = async (soundFile) => {

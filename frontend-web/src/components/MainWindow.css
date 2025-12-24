@@ -197,7 +197,7 @@
 .main-content {
   flex: 1;
   display: grid;
-  grid-template-columns: 320px 1fr 320px;
+  grid-template-columns: 360px 1fr 320px;
   gap: 1.5rem;
   padding: 1.5rem;
   overflow: hidden;
@@ -333,6 +333,7 @@
   border-radius: 8px;
   border: 1px solid rgba(139, 111, 71, 0.3);
   transition: all 0.2s ease;
+  min-width: 0; /* Cho phép flex items co lại */
 }
 
 .player-info:hover {
@@ -351,6 +352,9 @@
   gap: 0.5rem;
   /* Không cho xuống dòng giữa màu & tên người chơi */
   flex-wrap: nowrap;
+  flex: 1;
+  min-width: 0; /* Cho phép text truncate */
+  overflow: hidden;
 }
 
 .player-color-name {
@@ -367,6 +371,10 @@
   opacity: 0.9;
   color: rgba(255, 255, 255, 0.85);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  flex-shrink: 1;
 }
 
 .player-player-name-prefix {
@@ -403,6 +411,8 @@
   transition: all 0.3s ease;
   min-width: 60px;
   text-align: center;
+  flex-shrink: 0; /* Không cho time display bị co lại */
+  white-space: nowrap;
 }
 
 .time-display.time-active {
@@ -434,18 +444,20 @@
 /* Room Code Display in Game */
 .room-code-display-in-game {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
-  padding: 1rem;
+  padding: 0.5rem 0.65rem;
   background: rgba(26, 15, 26, 0.85);
   backdrop-filter: blur(10px) saturate(150%);
   -webkit-backdrop-filter: blur(10px) saturate(150%);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(139, 111, 71, 0.2),
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(139, 111, 71, 0.15),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  border: 2px solid rgba(139, 111, 71, 0.4);
-  margin-top: 0.75rem;
+  border: 1.5px solid rgba(139, 111, 71, 0.35);
+  margin-top: 0.4rem;
   flex-shrink: 0;
 }
 
@@ -510,33 +522,37 @@
 }
 
 .room-code-label {
-  font-size: 0.85rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 600;
   color: var(--color-text);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  margin-bottom: 0.25rem;
+  letter-spacing: 0.3px;
+  opacity: 0.9;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .room-code-box-in-game {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   background: rgba(42, 31, 42, 0.7);
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid rgba(139, 111, 71, 0.3);
-  padding: 0.75rem 1rem;
-  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
 }
 
 .room-code-text-in-game {
   font-family: "Courier New", Courier, monospace;
-  font-size: 1.5rem;
-  font-weight: bold;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--color-orange);
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   flex: 1;
-  text-align: center;
+  text-align: left;
 }
 
 .copy-button-in-game {
@@ -544,13 +560,16 @@
   border: none;
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 0.9rem;
   transition: color 0.2s ease;
-  padding: 0.25rem;
+  padding: 0.2rem;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
 }
 
 .copy-button-in-game:hover {
@@ -723,7 +742,7 @@
 /* Responsive design */
 @media (max-width: 1600px) {
   .main-content {
-    grid-template-columns: 300px 1fr 300px;
+    grid-template-columns: 340px 1fr 300px;
     gap: 1.25rem;
     padding: 1.25rem;
   }
@@ -731,7 +750,7 @@
 
 @media (max-width: 1400px) {
   .main-content {
-    grid-template-columns: 280px 1fr 280px;
+    grid-template-columns: 320px 1fr 280px;
     gap: 1rem;
     padding: 1rem;
   }
@@ -739,7 +758,7 @@
 
 @media (max-width: 1200px) {
   .main-content {
-    grid-template-columns: 260px 1fr 260px;
+    grid-template-columns: 300px 1fr 260px;
     gap: 0.875rem;
     padding: 0.875rem;
   }
@@ -778,6 +797,8 @@
   justify-content: center;
   padding: 2rem;
   animation: fadeIn 0.2s ease-out;
+  pointer-events: auto; /* Đảm bảo có thể click để đóng */
+  cursor: pointer; /* Hiển thị cursor pointer khi hover vào overlay */
 }
 
 /* Opponent Pass Dialog */
@@ -792,6 +813,8 @@
   align-items: center;
   justify-content: center;
   z-index: 10050;
+  pointer-events: auto; /* Đảm bảo có thể click để đóng */
+  cursor: pointer; /* Hiển thị cursor pointer khi hover vào overlay */
 }
 
 .pass-dialog {
@@ -810,6 +833,7 @@
   min-width: 360px;
   max-width: 480px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(248, 181, 0, 0.35);
+  cursor: default; /* Cursor mặc định cho modal content */
 }
 
 .pass-dialog-header {
@@ -864,6 +888,7 @@
   background: rgba(26, 15, 26, 0.98);
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
+  cursor: default; /* Cursor mặc định cho modal content */
   border-radius: 16px;
   border: 2px solid rgba(139, 111, 71, 0.5);
   box-shadow: 0 20px 80px rgba(0, 0, 0, 0.8), 0 0 60px rgba(255, 107, 53, 0.3),
@@ -1200,6 +1225,8 @@
   justify-content: center;
   z-index: 1000;
   animation: fadeIn 0.3s ease;
+  pointer-events: auto; /* Đảm bảo có thể click để đóng */
+  cursor: pointer; /* Hiển thị cursor pointer khi hover vào overlay */
 }
 
 @keyframes fadeIn {
@@ -1220,6 +1247,7 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
   border: 2px solid rgba(139, 111, 71, 0.5);
   max-width: 500px;
+  cursor: default; /* Cursor mặc định cho modal content */
   width: 90%;
   animation: slideUp 0.3s ease;
   overflow: hidden;
@@ -1400,4 +1428,326 @@
 
 .player-color-label {
   font-size: 0.8rem;
+}
+
+/* ML Analysis */
+.ml-analysis-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  pointer-events: auto; /* Đảm bảo có thể click để đóng */
+  cursor: pointer; /* Hiển thị cursor pointer khi hover vào overlay */
+}
+
+.ml-analysis-modal {
+  width: 100%;
+  max-width: 800px;
+  max-height: 90vh;
+  position: relative;
+  cursor: default; /* Cursor mặc định cho modal content */
+}
+
+.ml-analysis-trigger-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  margin-top: 1rem;
+  width: 100%;
+  justify-content: center;
+}
+
+.ml-analysis-trigger-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+}
+
+.ml-analysis-trigger-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ml-analysis-trigger-icon {
+  font-size: 1.25rem;
+}
+
+.ml-analysis-trigger-text {
+  font-weight: 600;
+}
+
+/* ML Visualization Controls */
+.ml-visualization-controls {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  z-index: 1001;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.ml-viz-toggle-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ml-viz-toggle-btn:hover {
+  background: #dc2626;
+}
+
+.ml-viz-details-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ml-viz-details-btn:hover {
+  background: #5568d3;
+}
+
+.ml-viz-mode-selector {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.ml-viz-mode-btn {
+  flex: 1;
+  background: #f3f4f6;
+  border: 2px solid transparent;
+  padding: 0.5rem;
+  border-radius: 6px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ml-viz-mode-btn:hover {
+  background: #e5e7eb;
+}
+
+.ml-viz-mode-btn.active {
+  background: #667eea;
+  border-color: #5568d3;
+  transform: scale(1.05);
+}
+
+/* ML Visualization Notification */
+.ml-viz-notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1002;
+  background: rgba(102, 126, 234, 0.95);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.ml-viz-notification-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ml-viz-notification-icon {
+  font-size: 1.2rem;
+}
+
+.ml-viz-notification-text {
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* ML Visualization Description Panel */
+.ml-viz-description-panel {
+  position: fixed;
+  top: 80px;
+  left: 20px; /* Góc trái màn hình */
+  z-index: 1001;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 1rem;
+  max-width: 320px;
+  max-height: 70vh;
+  overflow-y: auto;
+  transition: all 0.3s ease;
+}
+
+.ml-viz-description-panel.collapsed {
+  max-width: 200px;
+  padding: 0.75rem;
+}
+
+.ml-viz-description-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.ml-viz-description-panel.collapsed .ml-viz-description-header {
+  margin-bottom: 0;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.ml-viz-description-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.ml-viz-description-toggle {
+  background: #f3f4f6;
+  border: none;
+  color: #6b7280;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.ml-viz-description-toggle:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.ml-viz-description-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.ml-viz-description-panel.collapsed .ml-viz-description-content {
+  display: none;
+}
+
+.ml-viz-description-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ml-viz-description-subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.ml-viz-description-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+.ml-viz-description-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ml-viz-description-list li {
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.ml-viz-legend-item {
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.ml-viz-description-note {
+  margin: 0;
+  margin-top: 0.5rem;
+  padding: 0.5rem;
+  background: #f0f9ff;
+  border-left: 3px solid #3b82f6;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #1e40af;
+  line-height: 1.4;
+}
+
+.ml-viz-controls-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.ml-viz-controls-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #374151;
 }

@@ -5,8 +5,29 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import AnyHttpUrl, EmailStr, Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import AnyHttpUrl, EmailStr, Field
+
+# Tương thích với cả pydantic 1.x và 2.x
+try:
+    from pydantic import field_validator
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+    PYDANTIC_V2 = True
+except (ImportError, ModuleNotFoundError):
+    # Pydantic 1.x
+    from pydantic import validator, BaseSettings
+    PYDANTIC_V2 = False
+    # Tạo alias cho field_validator
+    def field_validator(*args, **kwargs):
+        mode = kwargs.pop('mode', None)
+        if mode == 'before':
+            kwargs['pre'] = True
+        return validator(*args, **kwargs)
+    # Tạo SettingsConfigDict tương thích
+    class SettingsConfigDict:
+        def __init__(self, **kwargs):
+            self.env_file = kwargs.get('env_file')
+            self.env_file_encoding = kwargs.get('env_file_encoding', 'utf-8')
+            self.extra = kwargs.get('extra', 'ignore')
 
 
 def get_env_file_path() -> str:
@@ -31,11 +52,18 @@ def get_env_file_path() -> str:
 class Settings(BaseSettings):
     """Định nghĩa toàn bộ biến môi trường cần thiết."""
 
-    model_config = SettingsConfigDict(
-        env_file=get_env_file_path(),
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
+    if PYDANTIC_V2:
+        model_config = SettingsConfigDict(
+            env_file=get_env_file_path(),
+            env_file_encoding="utf-8",
+            extra="ignore"
+        )
+    else:
+        # Pydantic 1.x
+        class Config:
+            env_file = get_env_file_path()
+            env_file_encoding = "utf-8"
+            extra = "ignore"
 
     app_name: str = "GoGame Backend"
     debug: bool = False

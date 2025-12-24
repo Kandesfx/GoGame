@@ -23,41 +23,112 @@ const PremiumFeatures = ({ matchId, onHintReceived, onAnalysisReceived, onReview
       setLoading(prev => ({ ...prev, hint: true }))
       setError(null)
 
-      // Lấy board state hiện tại
-      const matchResponse = await api.get(`/matches/${matchId}`)
-      const boardState = matchResponse.data.state
-
-      const response = await api.post('/premium/hint', {
-        match_id: matchId,
-        top_k: 3  // Top 3 nước đi tốt nhất
+      // Gọi ML analysis endpoint để lấy policy map và best moves
+      const response = await api.post('/ml/analyze-position-from-match', {
+        match_id: matchId
       })
 
-      setHintResult(response.data)
+      console.log('ML Analysis response for hints:', response.data)
       
       // Dispatch event để CoinDisplay tự động cập nhật
       window.dispatchEvent(new CustomEvent('coinBalanceUpdated'))
       
-      if (onHintReceived) {
-        onHintReceived(response.data)
-      }
-
-      // Hiển thị kết quả
-      if (response.data && response.data.hints && response.data.hints.length > 0) {
-        const hints = response.data.hints
-        const hintMessages = hints.map((hint, idx) => {
-          const position = hint.position
-          const score = hint.score ? hint.score.toFixed(2) : 'N/A'
-          return `${idx + 1}. Vị trí (${position[0]}, ${position[1]}): ${score} điểm`
-        }).join('\n')
+      // Extract hints từ ML analysis response
+      // Lấy top moves từ intent.policy_map hoặc best_move
+      const hints = []
+      
+      if (response.data) {
+        // Lấy best_move nếu có
+        if (response.data.best_move && response.data.best_move.position) {
+          const [x, y] = response.data.best_move.position
+          hints.push({
+            move: [x, y],
+            confidence: response.data.best_move.confidence || 0.9,
+            is_pass: false
+          })
+        }
         
-        alert(`💡 Gợi ý nước đi:\n\n${hintMessages}\n\nĐã sử dụng 10 coins`)
+        // Lấy top moves từ intent.policy_map
+        if (response.data.intent && response.data.intent.heatmap) {
+          const policyMap = response.data.intent.heatmap
+          const topMoves = []
+          
+          // Convert policy map thành array of [x, y, probability]
+          for (let y = 0; y < policyMap.length; y++) {
+            for (let x = 0; x < policyMap[y].length; x++) {
+              const prob = policyMap[y][x]
+              if (prob > 0.01) { // Chỉ lấy moves có probability > 1%
+                topMoves.push({ x, y, prob })
+              }
+            }
+          }
+          
+          // Sort by probability và lấy top 3
+          topMoves.sort((a, b) => b.prob - a.prob)
+          const top3 = topMoves.slice(0, 3)
+          
+          top3.forEach(move => {
+            // Tránh trùng với best_move
+            if (!hints.some(h => h.move[0] === move.x && h.move[1] === move.y)) {
+              hints.push({
+                move: [move.x, move.y],
+                confidence: move.prob,
+                is_pass: false
+              })
+            }
+          })
+        }
+      }
+      
+      // Nếu không có hints từ ML, fallback về premium/hint
+      if (hints.length === 0) {
+        console.log('No hints from ML analysis, falling back to premium/hint')
+        try {
+          const fallbackResponse = await api.post('/premium/hint', {
+            match_id: matchId,
+            top_k: 3
+          })
+          const fallbackHints = fallbackResponse.data?.hints || []
+          hints.push(...fallbackHints)
+        } catch (fallbackErr) {
+          console.warn('Fallback hint also failed:', fallbackErr)
+        }
+      }
+      
+      setHintResult({ hints })
+      
+      if (onHintReceived) {
+        if (hints.length > 0) {
+          onHintReceived(hints)
+        } else {
+          console.warn('No hints received')
+          alert('⚠️ Không có gợi ý nào được tìm thấy cho vị trí hiện tại')
+        }
       }
     } catch (err) {
       console.error('Hint request failed:', err)
       const errorMsg = err.response?.data?.detail || 'Không thể lấy gợi ý'
       
-      if (err.response?.status === 402) {
-        alert(`❌ Không đủ coins! Cần 10 coins để sử dụng tính năng này.\n\n${errorMsg}`)
+      // Nếu ML analysis không available (503), fallback về premium/hint
+      if (err.response?.status === 503) {
+        console.log('ML analysis not available, falling back to premium/hint')
+        try {
+          const fallbackResponse = await api.post('/premium/hint', {
+            match_id: matchId,
+            top_k: 3
+          })
+          const fallbackHints = fallbackResponse.data?.hints || []
+          if (onHintReceived && fallbackHints.length > 0) {
+            onHintReceived(fallbackHints)
+          } else {
+            alert('⚠️ Không có gợi ý nào được tìm thấy cho vị trí hiện tại')
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback hint failed:', fallbackErr)
+          alert(`❌ ${fallbackErr.response?.data?.detail || 'Không thể lấy gợi ý'}`)
+        }
+      } else if (err.response?.status === 402) {
+        alert(`❌ Không đủ coins! Cần 50 coins để sử dụng tính năng này.\n\n${errorMsg}`)
       } else {
         alert(`❌ ${errorMsg}`)
       }
@@ -77,20 +148,61 @@ const PremiumFeatures = ({ matchId, onHintReceived, onAnalysisReceived, onReview
       setLoading(prev => ({ ...prev, analysis: true }))
       setError(null)
 
-      const response = await api.post(`/premium/analysis?match_id=${matchId}`)
+      // Gọi ML analysis endpoint để lấy evaluation (đánh giá chiến lược)
+      const response = await api.post('/ml/analyze-position-from-match', {
+        match_id: matchId
+      })
+
+      console.log('ML Analysis response for evaluation:', response.data)
 
       // Dispatch event để CoinDisplay tự động cập nhật
       window.dispatchEvent(new CustomEvent('coinBalanceUpdated'))
       
-      // Analysis là async, trả về request_id
-      if (response.data && response.data.request_id) {
-        setAnalysisRequestId(response.data.request_id)
-        alert(`📊 Đang phân tích ván cờ...\n\nRequest ID: ${response.data.request_id}\n\nĐã sử dụng 20 coins. Kết quả sẽ được cập nhật khi hoàn thành.`)
+      // Extract chỉ phần evaluation từ ML analysis
+      if (response.data && response.data.evaluation) {
+        const evaluation = response.data.evaluation
+        const bestMove = response.data.best_move
         
-        // Poll for results
-        pollAnalysisResult(response.data.request_id)
+        console.log('Evaluation data from ML analysis:', evaluation)
+        
+        if (onAnalysisReceived) {
+          // Chỉ gửi evaluation và bestMove, không gửi threats/attacks/intent
+          onAnalysisReceived({
+            id: 'ml-evaluation',
+            feature: 'analysis',
+            summary: `Win probability: ${(evaluation.win_probability || 0.5) * 100}%`,
+            evaluation: evaluation,
+            bestMove: bestMove,
+            coins_spent: 20
+          })
+        }
       } else {
-        alert('✅ Phân tích đã được gửi. Kết quả sẽ được cập nhật khi hoàn thành.')
+        // Fallback: nếu không có evaluation, thử premium/analysis
+        console.log('No evaluation from ML analysis, falling back to premium/analysis')
+        try {
+          const fallbackResponse = await api.post(`/premium/analysis?match_id=${matchId}`)
+          if (fallbackResponse.data && fallbackResponse.data.analysis) {
+            const analysisData = fallbackResponse.data.analysis
+            if (onAnalysisReceived) {
+              onAnalysisReceived({
+                id: fallbackResponse.data.request_id || 'unknown',
+                feature: 'analysis',
+                summary: `Win probability: ${(analysisData.win_probability || 0.5) * 100}%`,
+                evaluation: {
+                  win_probability: analysisData.win_probability || 0.5,
+                  territory_estimate: analysisData.territory_estimate || { black: 0, white: 0 },
+                  stone_count: analysisData.stone_count || { black: 0, white: 0 },
+                  game_phase: analysisData.game_phase || 'middle'
+                },
+                bestMove: null,
+                coins_spent: 20
+              })
+            }
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback analysis failed:', fallbackErr)
+          alert('❌ Không thể lấy dữ liệu đánh giá từ server')
+        }
       }
     } catch (err) {
       console.error('Analysis request failed:', err)
@@ -117,17 +229,29 @@ const PremiumFeatures = ({ matchId, onHintReceived, onAnalysisReceived, onReview
         const response = await api.get(`/premium/requests/${requestId}`)
         const report = response.data
 
-        if (report.status === 'completed') {
+        console.log('Poll analysis result:', report)
+        
+        // Backend trả về report với structure: {id, feature, summary, details, coins_spent}
+        // details chứa analysis data
+        if (report && report.details) {
+          console.log('Analysis details from DB:', report.details)
           setAnalysisRequestId(null)
           if (onAnalysisReceived) {
-            onAnalysisReceived(report)
+            // Pass full report với details
+            onAnalysisReceived({
+              ...report,
+              details: report.details || {}
+            })
           }
-          alert('✅ Phân tích hoàn thành! Kiểm tra kết quả trong bảng điều khiển.')
+          // Không cần alert, sẽ hiển thị trong MLAnalysisPanel
           return true
-        } else if (report.status === 'failed') {
+        } else if (report && report.error) {
           setAnalysisRequestId(null)
           alert(`❌ Phân tích thất bại: ${report.error || 'Unknown error'}`)
           return true
+        } else if (report) {
+          // Report tồn tại nhưng chưa có details - có thể chưa sẵn sàng
+          console.log('Report exists but no details yet, waiting...', report)
         }
 
         attempts++
@@ -162,27 +286,137 @@ const PremiumFeatures = ({ matchId, onHintReceived, onAnalysisReceived, onReview
       setLoading(prev => ({ ...prev, review: true }))
       setError(null)
 
-      const response = await api.post(`/premium/review?match_id=${matchId}`)
+      // Gọi ML analysis endpoint để lấy threats và attacks (mistakes và key moments)
+      const response = await api.post('/ml/analyze-position-from-match', {
+        match_id: matchId
+      })
+
+      console.log('ML Analysis response for review:', response.data)
 
       // Dispatch event để CoinDisplay tự động cập nhật
       window.dispatchEvent(new CustomEvent('coinBalanceUpdated'))
       
-      // Review là async, trả về request_id
-      if (response.data && response.data.request_id) {
-        setReviewRequestId(response.data.request_id)
-        alert(`🔍 Đang review ván cờ...\n\nRequest ID: ${response.data.request_id}\n\nĐã sử dụng 30 coins. Kết quả sẽ được cập nhật khi hoàn thành.`)
+      // Extract review data từ ML analysis response
+      const mistakes = []
+      const key_moments = []
+      
+      if (response.data) {
+        // Mistakes từ threats - các nhóm quân bị đe dọa
+        if (response.data.threats && response.data.threats.regions) {
+          response.data.threats.regions.forEach((region, index) => {
+            if (region.positions && region.positions.length > 0) {
+              // Lấy position đầu tiên của region làm mistake
+              const position = Array.isArray(region.positions[0]) 
+                ? region.positions[0] 
+                : [region.positions[0].x, region.positions[0].y]
+              
+              mistakes.push({
+                move_number: index + 1,
+                color: 'B', // Cần xác định từ board state
+                position: position,
+                eval_delta: -10 - (region.severity || 0.5) * 10,
+                severity: (region.severity || 0.5) > 0.7 ? 'major' : 'minor'
+              })
+            }
+          })
+        }
         
-        // Poll for results
-        pollReviewResult(response.data.request_id)
-      } else {
-        alert('✅ Review đã được gửi. Kết quả sẽ được cập nhật khi hoàn thành.')
+        // Key moments từ attacks - cơ hội tấn công
+        if (response.data.attacks && response.data.attacks.opportunities) {
+          response.data.attacks.opportunities.forEach((opp, index) => {
+            if (opp.position) {
+              const position = Array.isArray(opp.position)
+                ? opp.position
+                : [opp.position.x, opp.position.y]
+              
+              key_moments.push({
+                move_number: index + 1,
+                color: 'B', // Cần xác định từ board state
+                position: position,
+                eval_delta: (opp.confidence || 0.5) * 20,
+                type: 'advantage_gain'
+              })
+            }
+          })
+        }
+      }
+      
+      // Nếu không có data từ ML, fallback về premium/review
+      if (mistakes.length === 0 && key_moments.length === 0) {
+        console.log('No review data from ML analysis, falling back to premium/review')
+        const fallbackResponse = await api.post(`/premium/review?match_id=${matchId}`)
+        
+        if (fallbackResponse.data && fallbackResponse.data.review) {
+          const reviewData = fallbackResponse.data.review
+          if (onReviewReceived) {
+            onReviewReceived({
+              id: fallbackResponse.data.request_id || 'unknown',
+              feature: 'review',
+              summary: `Review: ${reviewData?.statistics?.mistakes_count || 0} mistakes found`,
+              details: reviewData || {},
+              coins_spent: 30
+            })
+          }
+          return
+        }
+      }
+      
+      // Tạo review data từ ML analysis
+      const reviewData = {
+        mistakes: mistakes.slice(0, 10), // Top 10
+        key_moments: key_moments.slice(0, 5), // Top 5
+        statistics: {
+          total_moves: 0, // Cần lấy từ game history
+          mistakes_count: mistakes.length,
+          key_moments_count: key_moments.length,
+          black_mistakes: mistakes.filter(m => m.color === 'B').length,
+          white_mistakes: mistakes.filter(m => m.color === 'W').length
+        }
+      }
+      
+      console.log('Review data from ML analysis:', reviewData)
+      
+      if (onReviewReceived) {
+        try {
+          onReviewReceived({
+            id: 'ml-analysis-review',
+            feature: 'review',
+            summary: `Review: ${reviewData.statistics.mistakes_count} mistakes found`,
+            details: reviewData,
+            coins_spent: 30
+          })
+        } catch (error) {
+          console.error('Error calling onReviewReceived:', error)
+          alert('❌ Có lỗi khi xử lý dữ liệu review')
+        }
       }
     } catch (err) {
       console.error('Review request failed:', err)
       const errorMsg = err.response?.data?.detail || 'Không thể review ván cờ'
       
-      if (err.response?.status === 402) {
-        alert(`❌ Không đủ coins! Cần 30 coins để sử dụng tính năng này.\n\n${errorMsg}`)
+      // Nếu ML analysis không available (503), fallback về premium/review
+      if (err.response?.status === 503) {
+        console.log('ML analysis not available, falling back to premium/review')
+        try {
+          const fallbackResponse = await api.post(`/premium/review?match_id=${matchId}`)
+          if (fallbackResponse.data && fallbackResponse.data.review) {
+            const reviewData = fallbackResponse.data.review
+            if (onReviewReceived) {
+              onReviewReceived({
+                id: fallbackResponse.data.request_id || 'unknown',
+                feature: 'review',
+                summary: `Review: ${reviewData?.statistics?.mistakes_count || 0} mistakes found`,
+                details: reviewData || {},
+                coins_spent: 30
+              })
+            }
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback review failed:', fallbackErr)
+          alert(`❌ ${fallbackErr.response?.data?.detail || 'Không thể review ván cờ'}`)
+        }
+      } else if (err.response?.status === 402) {
+        alert(`❌ Không đủ coins! Cần 50 coins để sử dụng tính năng này.\n\n${errorMsg}`)
       } else {
         alert(`❌ ${errorMsg}`)
       }
@@ -202,17 +436,29 @@ const PremiumFeatures = ({ matchId, onHintReceived, onAnalysisReceived, onReview
         const response = await api.get(`/premium/requests/${requestId}`)
         const report = response.data
 
-        if (report.status === 'completed') {
+        console.log('Poll review result:', report)
+        
+        // Backend trả về report với structure: {id, feature, summary, details, coins_spent}
+        // details chứa: {mistakes: [], key_moments: [], statistics: {}}
+        if (report && report.details) {
+          console.log('Review details from DB:', report.details)
           setReviewRequestId(null)
           if (onReviewReceived) {
-            onReviewReceived(report)
+            // Pass full report với details
+            onReviewReceived({
+              ...report,
+              details: report.details || {}
+            })
           }
-          alert('✅ Review hoàn thành! Kiểm tra kết quả trong bảng điều khiển.')
+          // Không cần alert, sẽ hiển thị trong ReviewPanel
           return true
-        } else if (report.status === 'failed') {
+        } else if (report && report.error) {
           setReviewRequestId(null)
           alert(`❌ Review thất bại: ${report.error || 'Unknown error'}`)
           return true
+        } else if (report) {
+          // Report tồn tại nhưng không có details - có thể chưa sẵn sàng
+          console.log('Report exists but no details yet, waiting...', report)
         }
 
         attempts++

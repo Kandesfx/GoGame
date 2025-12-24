@@ -8,7 +8,16 @@ Test các chức năng:
 """
 
 import sys
+import os
 from pathlib import Path
+
+# Fix encoding cho Windows terminal
+if sys.platform == 'win32':
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
 
 # Thêm paths
 project_root = Path(__file__).parent.parent
@@ -16,40 +25,43 @@ sys.path.insert(0, str(project_root / "backend" / "app" / "services"))
 sys.path.insert(0, str(project_root / "src" / "ml"))
 
 print("=" * 70)
-print("🎮 TEST ML MODEL TRONG GAME")
+print("TEST ML MODEL TRONG GAME")
 print("=" * 70)
 
 try:
     from ml_model_service import MLModelService, get_ml_model_service
-    print("✅ ML model service imported successfully\n")
+    print("[OK] ML model service imported successfully\n")
 except ImportError as e:
-    print(f"❌ Failed to import ML model service: {e}")
+    print(f"[ERROR] Failed to import ML model service: {e}")
     sys.exit(1)
 
 # Test 1: Load model
-print("📦 TEST 1: Load Model")
+print("TEST 1: Load Model")
 print("-" * 70)
-checkpoint_path = project_root / "checkpoints" / "final_model.pt"
+# Tìm model trong backend/models/ (ưu tiên) hoặc checkpoints/ (backward compatibility)
+checkpoint_path = project_root / "backend" / "models" / "final_model.pt"
+if not checkpoint_path.exists():
+    checkpoint_path = project_root / "checkpoints" / "final_model.pt"
 
 if not checkpoint_path.exists():
-    print(f"❌ Checkpoint not found: {checkpoint_path}")
-    print(f"   Hãy đảm bảo file final_model.pt đã được đặt trong thư mục checkpoints/")
+    print(f"[ERROR] Checkpoint not found: {checkpoint_path}")
+    print(f"   Hãy đảm bảo file final_model.pt đã được đặt trong thư mục backend/models/ hoặc checkpoints/")
     sys.exit(1)
 
-print(f"✅ Checkpoint found: {checkpoint_path}")
+print(f"[OK] Checkpoint found: {checkpoint_path}")
 
 try:
     ml_service = MLModelService(str(checkpoint_path), device='cpu')
     
     if ml_service.is_loaded():
-        print(f"✅ Model loaded successfully!")
+        print(f"[OK] Model loaded successfully!")
         print(f"   Board size: {ml_service.board_size}")
         print(f"   Device: {ml_service.device}")
     else:
-        print("❌ Model not loaded")
+        print("[ERROR] Model not loaded")
         sys.exit(1)
 except Exception as e:
-    print(f"❌ Failed to load model: {e}")
+    print(f"[ERROR] Failed to load model: {e}")
     import traceback
     traceback.print_exc()
     sys.exit(1)
@@ -57,7 +69,7 @@ except Exception as e:
 print()
 
 # Test 2: Predict với board state đơn giản
-print("🎯 TEST 2: Predict Move - Board State Đơn Giản")
+print("TEST 2: Predict Move - Board State Don Gian")
 print("-" * 70)
 
 board_position_1 = {
@@ -95,7 +107,7 @@ except Exception as e:
 print()
 
 # Test 3: Predict với board state phức tạp hơn
-print("🎯 TEST 3: Predict Move - Board State Phức Tạp")
+print("TEST 3: Predict Move - Board State Phuc Tap")
 print("-" * 70)
 
 board_position_2 = {
@@ -135,7 +147,7 @@ except Exception as e:
 print()
 
 # Test 4: Predict với board trống (đầu game)
-print("🎯 TEST 4: Predict Move - Board Trống (Đầu Game)")
+print("TEST 4: Predict Move - Board Trong (Dau Game)")
 print("-" * 70)
 
 board_position_3 = {}  # Board trống
@@ -156,7 +168,7 @@ try:
         print(f"   Best move: ({x}, {y})")
         print(f"   Policy probability: {policy_prob:.4f} ({policy_prob*100:.2f}%)")
         print(f"   Win probability: {win_prob:.4f} ({win_prob*100:.2f}%)")
-        print(f"\n💡 Model khuyến nghị nước đi đầu tiên ở ({x}, {y})")
+        print(f"\n[INFO] Model khuyen nghi nuoc di dau tien o ({x}, {y})")
     else:
         print("\n⚠️  No move predicted")
 except Exception as e:
@@ -167,7 +179,7 @@ except Exception as e:
 print()
 
 # Test 5: Test với White player
-print("🎯 TEST 5: Predict Move - White Player")
+print("TEST 5: Predict Move - White Player")
 print("-" * 70)
 
 board_position_4 = {
@@ -201,7 +213,7 @@ except Exception as e:
 print()
 
 # Test 6: Performance test
-print("⚡ TEST 6: Performance Test")
+print("TEST 6: Performance Test")
 print("-" * 70)
 
 import time
@@ -228,29 +240,29 @@ for i in range(10):
 end_time = time.time()
 avg_time = (end_time - start_time) / 10
 
-print(f"\n✅ Performance test completed!")
+print(f"\n[OK] Performance test completed!")
 print(f"   Average time per prediction: {avg_time*1000:.2f} ms")
 print(f"   Total time for 10 predictions: {(end_time - start_time)*1000:.2f} ms")
 
 if avg_time < 0.5:
-    print(f"   ⚡ Performance: Tốt (< 500ms)")
+    print(f"   [OK] Performance: Tot (< 500ms)")
 elif avg_time < 1.0:
-    print(f"   ⚡ Performance: Chấp nhận được (< 1s)")
+    print(f"   [OK] Performance: Chap nhan duoc (< 1s)")
 else:
-    print(f"   ⚠️  Performance: Hơi chậm (> 1s)")
+    print(f"   [WARNING] Performance: Hoi cham (> 1s)")
 
 print()
 
 # Summary
 print("=" * 70)
-print("📊 TÓM TẮT")
+print("TOM TAT")
 print("=" * 70)
-print(f"✅ Model đã được load thành công")
-print(f"✅ Board size: {ml_service.board_size}")
-print(f"✅ Device: {ml_service.device}")
-print(f"✅ Model sẵn sàng sử dụng trong game!")
+print(f"[OK] Model da duoc load thanh cong")
+print(f"[OK] Board size: {ml_service.board_size}")
+print(f"[OK] Device: {ml_service.device}")
+print(f"[OK] Model san sang su dung trong game!")
 print()
-print("💡 Để test trong game thực tế:")
+print("[INFO] De test trong game thuc te:")
 print("   1. Khởi động backend server")
 print("   2. Tạo AI match mới")
 print("   3. AI sẽ tự động sử dụng ML model để đánh")

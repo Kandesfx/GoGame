@@ -9,10 +9,21 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
-import numpy as np
-import torch
-
 logger = logging.getLogger(__name__)
+
+# Try to import ML dependencies (optional)
+# Không báo warning - vì có thể chưa cần ML features
+try:
+    import numpy as np
+    import torch
+    _NUMPY_AVAILABLE = True
+    _TORCH_AVAILABLE = True
+except ImportError:
+    # Dependencies chưa được cài - không báo warning, chỉ set flag
+    np = None
+    torch = None
+    _NUMPY_AVAILABLE = False
+    _TORCH_AVAILABLE = False
 
 # Thêm src/ml vào path để import models
 _project_root = Path(__file__).parent.parent.parent.parent
@@ -20,21 +31,32 @@ _src_ml_path = _project_root / "src" / "ml"
 if str(_src_ml_path) not in sys.path:
     sys.path.insert(0, str(_src_ml_path))
 
-try:
-    from policy_network import PolicyNetwork, PolicyConfig
-    from value_network import ValueNetwork, ValueConfig
-    _ML_MODELS_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"ML models not available: {e}")
-    PolicyNetwork = None
-    ValueNetwork = None
-    PolicyConfig = None
-    ValueConfig = None
-    _ML_MODELS_AVAILABLE = False
+# Try to import ML model classes (optional - chỉ khi có dependencies)
+_ML_MODELS_AVAILABLE = False
+PolicyNetwork = None
+ValueNetwork = None
+PolicyConfig = None
+ValueConfig = None
+
+if _NUMPY_AVAILABLE and _TORCH_AVAILABLE:
+    try:
+        from policy_network import PolicyNetwork, PolicyConfig
+        from value_network import ValueNetwork, ValueConfig
+        _ML_MODELS_AVAILABLE = True
+    except ImportError:
+        # Model files chưa có - không báo warning, chỉ set flag
+        PolicyNetwork = None
+        ValueNetwork = None
+        PolicyConfig = None
+        ValueConfig = None
+        _ML_MODELS_AVAILABLE = False
 
 
-def get_liberties_simple(board_state: np.ndarray, x: int, y: int, board_size: int) -> int:
+def get_liberties_simple(board_state, x: int, y: int, board_size: int) -> int:
     """Tính số liberties của một quân cờ tại (x, y)."""
+    if not _NUMPY_AVAILABLE:
+        raise ImportError("numpy is required for ML model features")
+    
     if board_state[y, x] == 0:
         return 0
     
@@ -159,11 +181,14 @@ class MLModelService:
     def __init__(self, checkpoint_path: Optional[str] = None, device: str = 'cpu'):
         """
         Args:
-            checkpoint_path: Đường dẫn đến checkpoint file. Nếu None, sẽ tìm trong checkpoints/
+            checkpoint_path: Đường dẫn đến checkpoint file. Nếu None, sẽ tìm trong backend/models/ hoặc checkpoints/
             device: 'cpu' hoặc 'cuda'
         """
+        if not _NUMPY_AVAILABLE or not _TORCH_AVAILABLE:
+            raise ImportError("ML dependencies not available. Please install numpy and torch: pip install numpy torch")
+        
         if not _ML_MODELS_AVAILABLE:
-            raise ImportError("ML models not available. Please ensure torch and model files are installed.")
+            raise ImportError("ML models not available. Please ensure model files are installed.")
         
         self.device = torch.device(device)
         self.policy_net: Optional[PolicyNetwork] = None
@@ -179,24 +204,40 @@ class MLModelService:
             self.load_model(checkpoint_path)
     
     def _find_checkpoint(self) -> Optional[str]:
-        """Tìm checkpoint file trong thư mục checkpoints/."""
+        """
+        Tìm checkpoint file trong thư mục models/.
+        
+        Tìm theo thứ tự:
+        1. backend/models/ (cho deploy)
+        2. checkpoints/ (backward compatibility)
+        """
+        # Ưu tiên: backend/models/ (cho deploy)
+        models_dir = Path(__file__).parent.parent.parent / "models"
         checkpoints_dir = _project_root / "checkpoints"
+        
+        # Danh sách thư mục để tìm (ưu tiên backend/models trước)
+        search_dirs = [
+            ("backend/models", models_dir),
+            ("checkpoints", checkpoints_dir),  # Backward compatibility
+        ]
         
         # Ưu tiên: final_model.pt > best_model.pt > các file khác
         for filename in ["final_model.pt", "best_model.pt"]:
-            checkpoint_path = checkpoints_dir / filename
-            if checkpoint_path.exists():
-                logger.info(f"Found checkpoint: {checkpoint_path}")
-                return str(checkpoint_path)
+            for dir_name, dir_path in search_dirs:
+                checkpoint_path = dir_path / filename
+                if checkpoint_path.exists():
+                    logger.info(f"Found checkpoint in {dir_name}: {checkpoint_path}")
+                    return str(checkpoint_path)
         
         # Tìm bất kỳ file .pt nào
-        pt_files = list(checkpoints_dir.glob("*.pt"))
-        if pt_files:
-            checkpoint_path = pt_files[0]
-            logger.info(f"Found checkpoint: {checkpoint_path}")
-            return str(checkpoint_path)
+        for dir_name, dir_path in search_dirs:
+            pt_files = list(dir_path.glob("*.pt"))
+            if pt_files:
+                checkpoint_path = pt_files[0]
+                logger.info(f"Found checkpoint in {dir_name}: {checkpoint_path}")
+                return str(checkpoint_path)
         
-        logger.warning(f"No checkpoint found in {checkpoints_dir}")
+        logger.warning(f"No checkpoint found in {models_dir} or {checkpoints_dir}")
         return None
     
     def load_model(self, checkpoint_path: str) -> bool:
@@ -346,18 +387,28 @@ def get_ml_model_service(checkpoint_path: Optional[str] = None, device: str = 'c
         device: 'cpu' hoặc 'cuda'
     
     Returns:
-        MLModelService instance hoặc None nếu không load được
+        MLModelService instance hoặc None nếu không load được (không báo lỗi)
     """
     global _ml_model_service
+    
+    # Nếu dependencies không có, trả về None ngay (không báo lỗi)
+    if not _NUMPY_AVAILABLE or not _TORCH_AVAILABLE:
+        return None
     
     if _ml_model_service is None:
         try:
             _ml_model_service = MLModelService(checkpoint_path, device)
             if not _ml_model_service.is_loaded():
-                logger.warning("ML model service created but model not loaded")
+                # Chỉ log debug, không warning - vì có thể chưa train model
+                logger.debug("ML model service created but model not loaded (model files may not exist yet)")
+        except ImportError as e:
+            # ImportError = thiếu dependencies hoặc model files - chỉ log debug, không error
+            logger.debug(f"ML model service not available: {e} (this is OK if you haven't trained the model)")
+            _ml_model_service = None
         except Exception as e:
-            logger.error(f"Failed to create ML model service: {e}", exc_info=True)
-            return None
+            # Các lỗi khác - log debug, không warning
+            logger.debug(f"ML model service initialization failed: {e}")
+            _ml_model_service = None
     
     return _ml_model_service
 

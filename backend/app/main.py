@@ -150,16 +150,18 @@ def create_app() -> FastAPI:
         """Start background tasks khi app khởi động."""
         logger.info("Starting background tasks...")
         
-        # Load ML model (nếu có)
+        # Load ML model (nếu có) - optional, không báo lỗi nếu chưa có
         try:
             from .services.ml_model_service import get_ml_model_service
             ml_service = get_ml_model_service()
             if ml_service and ml_service.is_loaded():
                 logger.info(f"✅ ML Model loaded successfully! Board size: {ml_service.board_size}")
             else:
-                logger.warning("⚠️  ML Model not available or not loaded")
+                # Chỉ log debug, không warning - vì có thể chưa train model
+                logger.debug("ℹ️  ML Model not available (model files may not exist yet - this is OK if you haven't trained the model)")
         except Exception as e:
-            logger.warning(f"⚠️  Failed to load ML Model: {e}")
+            # Chỉ log debug, không warning
+            logger.debug(f"ℹ️  ML Model not available: {e} (this is OK if you haven't trained the model)")
         
         # Start cache cleanup task
         asyncio.create_task(background.cleanup_evaluation_cache(interval_seconds=300))

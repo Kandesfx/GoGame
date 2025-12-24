@@ -190,12 +190,49 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     console.log('🔓 Logging out...')
     try {
+      // Lưu user_id trước khi xóa user để có thể xóa eventDialogShown key
+      const userId = user?.id || user?.user_id
+      
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       setToken(null)
       setUser(null)
       // Clear API authorization header
       delete api.defaults.headers.common['Authorization']
+      
+      // Xóa trạng thái đã hiển thị event dialog trong session để hiển thị lại khi đăng nhập lại
+      if (userId) {
+        const eventDialogSessionKey = `eventDialogShown_${userId}_session`
+        try {
+          if (typeof window !== 'undefined' && window.sessionStorage) {
+            window.sessionStorage.removeItem(eventDialogSessionKey)
+            console.log('🗑️ Removed event dialog session state for user:', userId)
+          }
+        } catch (e) {
+          console.warn('⚠️ Could not remove event dialog session state:', e)
+        }
+      } else {
+        // Nếu không có userId, xóa tất cả các key eventDialogShown_*_session
+        // (fallback cho trường hợp user đã bị clear trước khi logout)
+        try {
+          if (typeof window !== 'undefined' && window.sessionStorage) {
+            const keysToRemove = []
+            for (let i = 0; i < window.sessionStorage.length; i++) {
+              const key = window.sessionStorage.key(i)
+              if (key && key.startsWith('eventDialogShown_') && key.endsWith('_session')) {
+                keysToRemove.push(key)
+              }
+            }
+            keysToRemove.forEach(key => window.sessionStorage.removeItem(key))
+            if (keysToRemove.length > 0) {
+              console.log('🗑️ Removed all event dialog session states:', keysToRemove.length)
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ Could not clean up event dialog session states:', e)
+        }
+      }
+      
       console.log('✅ Logout successful')
     } catch (error) {
       console.error('❌ Logout error:', error)

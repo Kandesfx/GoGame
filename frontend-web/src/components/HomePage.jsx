@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import PropTypes from 'prop-types'
 import { useAuth } from '../contexts/AuthContext'
-import { FaCog, FaSignOutAlt, FaGamepad, FaUser, FaHistory, FaInfoCircle, FaTimes, FaTrophy } from 'react-icons/fa'
+import { FaCog, FaSignOutAlt, FaGamepad, FaUser, FaHistory, FaInfoCircle, FaTimes, FaTrophy, FaGift } from 'react-icons/fa'
 import api from '../services/api'
 import MatchDialog from './MatchDialog'
 import CoinDisplay from './CoinDisplay'
@@ -9,6 +9,7 @@ import PremiumBadge from './PremiumBadge'
 import ShopDialog from './ShopDialog'
 import PremiumDialog from './PremiumDialog'
 import TransactionHistory from './TransactionHistory'
+import EventDialog from './EventDialog'
 
 // Force reload v3
 console.log("🏠 HomePage.jsx loaded - version 3");
@@ -44,6 +45,7 @@ const HomePage = ({ onStartMatch }) => {
   const [showShopDialog, setShowShopDialog] = useState(false)
   const [showPremiumDialog, setShowPremiumDialog] = useState(false)
   const [showTransactionHistory, setShowTransactionHistory] = useState(false)
+  const [showEventDialog, setShowEventDialog] = useState(false)
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem("goGameSettings");
     return saved
@@ -111,6 +113,31 @@ const HomePage = ({ onStartMatch }) => {
       }
       setHasCheckedTutorial(true);
 
+      // Kiểm tra xem đã hiển thị event dialog chưa (chỉ hiển thị lần đầu sau khi đăng nhập trong session này)
+      // Sử dụng sessionStorage để chỉ hiển thị khi thực sự là lần đầu đăng nhập, không phải refresh
+      const eventDialogUserId = userIdFromStats || userIdFromAuth || "guest";
+      const eventDialogSessionKey = `eventDialogShown_${eventDialogUserId}_session`;
+      const hasShownEventDialogInSession =
+        typeof window !== "undefined" &&
+        window.sessionStorage &&
+        window.sessionStorage.getItem(eventDialogSessionKey) === "true";
+      
+      // Chỉ hiển thị event dialog nếu chưa hiển thị trong session này và user đã đăng nhập
+      if (!hasShownEventDialogInSession && eventDialogUserId !== "guest") {
+        // Đánh dấu đã hiển thị trong session này
+        try {
+          if (typeof window !== "undefined" && window.sessionStorage) {
+            window.sessionStorage.setItem(eventDialogSessionKey, "true");
+          }
+        } catch (e) {
+          console.error("Failed to set event dialog session state:", e);
+        }
+        // Delay nhỏ để đảm bảo UI đã load xong
+        setTimeout(() => {
+          setShowEventDialog(true);
+        }, 500);
+      }
+
       // Load thêm matches để hiển thị trong recent matches
       if (matches.length > 0) {
         const allMatchesRes = await api.get("/matches/history?limit=3");
@@ -153,7 +180,7 @@ const HomePage = ({ onStartMatch }) => {
       }
 
       if (matchType === "pvp") {
-        // Tạo trận PVP trực tiếp (mã tham gia) với thời gian đã chọn
+        // Tạo trận PVP trực tiếp (tạo bàn mới) với thời gian đã chọn
         const timeControlMinutes = option || 10;
         try {
           const response = await api.post("/matches/pvp", {
@@ -177,6 +204,30 @@ const HomePage = ({ onStartMatch }) => {
         } catch (error) {
           alert(
             "Không thể tạo trận PVP: " +
+              (error.response?.data?.detail || error.message)
+          );
+        }
+        return;
+      }
+
+      if (matchType === "pvp-join") {
+        // Tham gia bàn bằng mã
+        const roomCode = playerColor; // playerColor được dùng để truyền roomCode
+        if (!roomCode || roomCode.length !== 6) {
+          alert("Mã bàn phải có 6 ký tự");
+          return;
+        }
+        try {
+          const response = await api.post("/matches/pvp/join", {
+            room_code: roomCode.toUpperCase(),
+          });
+          setShowMatchDialog(false);
+          if (onStartMatch) {
+            onStartMatch(response.data);
+          }
+        } catch (error) {
+          alert(
+            "Không thể tham gia bàn: " +
               (error.response?.data?.detail || error.message)
           );
         }
@@ -304,6 +355,13 @@ const HomePage = ({ onStartMatch }) => {
             title="Lịch sử giao dịch"
           >
             <FaHistory />
+          </button>
+          <button 
+            className="corner-btn event-btn"
+            onClick={() => setShowEventDialog(true)}
+            title="Xem sự kiện"
+          >
+            <FaGift />
           </button>
           <button 
             className="corner-btn"
@@ -526,6 +584,20 @@ const HomePage = ({ onStartMatch }) => {
       <TransactionHistory
         isOpen={showTransactionHistory}
         onClose={() => setShowTransactionHistory(false)}
+      />
+
+      {/* Event Dialog - Hiển thị lần đầu sau khi đăng nhập */}
+      <EventDialog
+        isOpen={showEventDialog}
+        onClose={() => {
+          // Không cần lưu vào localStorage nữa vì đã dùng sessionStorage
+          // Chỉ đóng dialog
+          setShowEventDialog(false);
+        }}
+        onBannerClick={() => {
+          // Mở ShopDialog khi click vào banner
+          setShowShopDialog(true);
+        }}
       />
     </div>
   );

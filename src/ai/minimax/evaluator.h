@@ -38,6 +38,16 @@ private:
     float evaluate_group_strength(const Board &board, Color player) const;
     float evaluate_influence(const Board &board, Color player) const;
     float evaluate_patterns(const Board &board, Color player) const;
+    
+    // Các hàm helper mới
+    int count_eyes(const GroupSnapshot &group, const Board &board) const;
+    bool is_secure_territory(const Board &board, int x, int y, Color player) const;
+    float evaluate_group_safety(const GroupSnapshot &group, const Board &board, Color player) const;
+    
+    // Các hàm đánh giá mới để cải thiện AI
+    float evaluate_threats(const Board &board, Color player) const;
+    float evaluate_territory_expansion(const Board &board, Color player) const;
+    float evaluate_opponent_response(const Board &board, Color player) const;
 };
 
 #endif // MINIMAX_EVALUATOR_H

@@ -127,7 +127,17 @@ MongoDB không cần migration, chỉ cần đảm bảo service đang chạy.
 
 ### 5. Build C++ AI Engine (nếu chưa có)
 
-Xem hướng dẫn trong `README.md` ở root project để build module `gogame_py`.
+Xem hướng dẫn chi tiết trong [`README_GOGAME_PY.md`](../README_GOGAME_PY.md) ở root project để build module `gogame_py`.
+
+**Tóm tắt nhanh:**
+```bash
+# Trong MSYS2 MinGW 64-bit shell
+cd build
+cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
+cmake --build . --target gogame_py
+```
+
+**⚠️ QUAN TRỌNG**: Module phải được build và đặt trong thư mục `build/` để backend nhận diện đúng.
 
 ### 6. Chạy server
 

@@ -163,18 +163,57 @@ const MatchmakingDialog = ({
         </div>
 
         <div className="mm-body">
+          {!inQueue && (
+            <div className="mm-section">
+              <div className="mm-label">Chọn kích thước bàn cờ</div>
+              <div className="mm-size-selector">
+                {[9, 13, 19].map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    className={
+                      "mm-size-btn " + (boardSize === size ? "mm-size-btn-active" : "")
+                    }
+                    onClick={() => setBoardSize(size)}
+                  >
+                    {size}x{size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="mm-section">
-            <div className="mm-label">Trạng thái hàng chờ</div>
+            <div className="mm-label">
+              {inQueue ? "Trạng thái hàng chờ" : "Thông tin"}
+            </div>
             <div className="mm-status">
               {inQueue ? (
                 <>
+                  <div className="mm-loading-container">
+                    <div className="mm-loading-spinner">
+                      <div className="mm-spinner-ring"></div>
+                      <div className="mm-spinner-ring"></div>
+                      <div className="mm-spinner-ring"></div>
+                    </div>
+                    <div className="mm-loading-particles">
+                      {[...Array(12)].map((_, i) => (
+                        <div key={i} className="mm-particle" style={{
+                          '--delay': `${i * 0.1}s`,
+                          '--angle': `${i * 30}deg`
+                        }}></div>
+                      ))}
+                    </div>
+                  </div>
                   <div className="mm-status-header">
                     <div className="mm-status-icon">
+                      <div className="mm-pulse-ring"></div>
+                      <div className="mm-pulse-ring"></div>
                       <span className="mm-pulse-dot" />
                     </div>
                     <div className="mm-status-text">
                       <div className="mm-status-title">
-                        Đang tìm đối thủ phù hợp
+                        <span className="mm-shimmer-text">Đang tìm đối thủ phù hợp</span>
                         <span className="mm-typing-dots">
                           <span>.</span>
                           <span>.</span>
@@ -186,6 +225,9 @@ const MatchmakingDialog = ({
                         không bỏ lỡ trận đấu.
                       </div>
                     </div>
+                  </div>
+                  <div className="mm-progress-bar">
+                    <div className="mm-progress-fill"></div>
                   </div>
 
                   {status && (
@@ -203,8 +245,10 @@ const MatchmakingDialog = ({
                 </>
               ) : (
                 <div className="mm-status-empty">
-                  Hệ thống đang chuẩn bị hàng chờ cho bạn. Vui lòng đợi trong
-                  giây lát...
+                  <div>Chọn kích thước bàn cờ và nhấn "Tìm đối thủ" để bắt đầu</div>
+                  <div style={{ fontSize: '12px', opacity: 0.6, marginTop: '8px' }}>
+                    Hệ thống sẽ tự động ghép bạn với đối thủ phù hợp
+                  </div>
                 </div>
               )}
             </div>

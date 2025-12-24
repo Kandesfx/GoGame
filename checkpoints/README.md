@@ -1,17 +1,29 @@
 # 📁 Thư Mục Checkpoints
 
-Thư mục này chứa các model đã được train (checkpoint files).
+> **⚠️ Lưu ý**: Thư mục này đã được thay thế bằng `backend/models/` cho deploy.
+> Code vẫn tìm trong thư mục này để backward compatibility, nhưng **khuyến nghị đặt model ở `backend/models/`**.
 
-## 📍 Vị Trí Đặt File Model
+## 📍 Vị Trí Đặt File Model (Mới)
 
-Sau khi tải model từ Colab hoặc nơi khác, đặt file vào thư mục này:
+**Khuyến nghị**: Đặt file model vào `backend/models/`:
+
+```
+GoGame/
+└── backend/
+    └── models/
+        └── final_model.pt      ← Đặt file của bạn ở đây (khuyến nghị)
+```
+
+## 📍 Vị Trí Cũ (Backward Compatibility)
+
+Thư mục này vẫn được hỗ trợ nhưng không khuyến nghị:
 
 ```
 GoGame-master/
 └── checkpoints/
-    ├── final_model.pt          ← Đặt file của bạn ở đây
-    ├── best_model.pt           ← Hoặc đây (nếu có)
-    └── checkpoint_epoch_X.pt   ← Hoặc các checkpoint khác
+    ├── final_model.pt          ← Vẫn hoạt động nhưng không khuyến nghị
+    ├── best_model.pt           
+    └── checkpoint_epoch_X.pt   
 ```
 
 ## 📝 Hướng Dẫn

@@ -84,8 +84,73 @@ bool Board::is_legal_move(const Move &move) const {
         return false;
     }
 
+    // Kiểm tra suicide rule: Move không được để nhóm của mình hết khí
+    // Trừ khi move đó capture quân đối thủ (capture có ưu tiên)
     Board temp(*this);
     temp.to_move_ = move.color();
+    
+    // Kiểm tra xem move có capture quân đối thủ không
+    const Stone opponent_stone = stone_from_color(opposite_color(move.color()));
+    const Stone player_stone = stone_from_color(move.color());
+    bool will_capture = false;
+    
+    // Kiểm tra các nhóm đối thủ xung quanh
+    for (const int neighbor : temp.neighbors(index)) {
+        if (temp.grid_[neighbor] == opponent_stone) {
+            const GroupInfo opponent_group = temp.collect_group(neighbor);
+            // Nếu nhóm đối thủ chỉ có 1 liberty (là vị trí move), sẽ bị capture
+            if (opponent_group.liberties.size() == 1) {
+                // Kiểm tra xem liberty đó có phải là index không
+                for (const int lib : opponent_group.liberties) {
+                    if (lib == index) {
+                        will_capture = true;
+                        break;
+                    }
+                }
+                if (will_capture) break;
+            }
+        }
+    }
+    
+    // Nếu không capture, kiểm tra suicide
+    if (!will_capture) {
+        // Tạm thời đặt quân để kiểm tra
+        temp.grid_[index] = player_stone;
+        
+        // Kiểm tra xem có nhóm của mình xung quanh không
+        bool has_friendly_group = false;
+        for (const int neighbor : temp.neighbors(index)) {
+            if (temp.grid_[neighbor] == player_stone) {
+                has_friendly_group = true;
+                break;
+            }
+        }
+        
+        if (has_friendly_group) {
+            // Có nhóm của mình xung quanh, kiểm tra nhóm sau khi đặt
+            const GroupInfo own_group = temp.collect_group(index);
+            // Nếu nhóm của mình không có khí sau khi đặt, đây là suicide
+            if (own_group.liberties.empty()) {
+                return false;  // Suicide không được phép
+            }
+        } else {
+            // Không có nhóm của mình xung quanh, kiểm tra xem quân đơn lẻ có khí không
+            int liberties = 0;
+            for (const int neighbor : temp.neighbors(index)) {
+                if (temp.grid_[neighbor] == Stone::Empty) {
+                    liberties++;
+                }
+            }
+            if (liberties == 0) {
+                return false;  // Suicide: quân đơn lẻ không có khí
+            }
+        }
+        
+        // Reset lại
+        temp.grid_[index] = Stone::Empty;
+    }
+    
+    // Nếu pass qua các check trên, thử apply move
     UndoInfo undo{};
     try {
         temp.apply_move(move, undo);
@@ -99,6 +164,7 @@ bool Board::is_legal_move(const Move &move) const {
     }
 
     const GroupInfo group = temp.collect_group(index);
+    // Final check: nhóm phải có ít nhất 1 liberty
     return !group.liberties.empty();
 }
 
@@ -267,8 +333,37 @@ void Board::apply_move(const Move &move, UndoInfo &undo) {
         throw std::runtime_error("Suicide move applied unexpectedly");
     }
 
+    // Ko rule: Chỉ set ko khi:
+    // 1. Capture đúng 1 quân đối thủ
+    // 2. Nhóm của mình chỉ có 1 quân (vừa đặt)
+    // 3. Quân bị capture là quân đơn lẻ (không phải từ nhóm lớn)
+    // Lưu ý: Phải kiểm tra trước khi remove stones
     if (captured_indices_set.size() == 1 && own_group.stones.size() == 1) {
-        ko_index_ = *captured_indices_set.begin();
+        // Kiểm tra xem quân bị capture có phải là quân đơn lẻ không
+        // (Ko chỉ xảy ra khi capture 1 quân đơn lẻ, không phải từ nhóm lớn)
+        const int captured_index = *captured_indices_set.begin();
+        const Stone opponent_stone = stone_from_color(opposite_color(move.color()));
+        
+        // Kiểm tra xem quân bị capture có neighbors cùng màu không
+        // (Nếu có neighbors cùng màu, đó là nhóm lớn, không phải ko)
+        bool is_single_stone = true;
+        for (const int neighbor : neighbors(captured_index)) {
+            if (grid_[neighbor] == opponent_stone) {
+                // Có neighbor cùng màu -> không phải quân đơn lẻ
+                is_single_stone = false;
+                break;
+            }
+        }
+        
+        // Chỉ set ko nếu capture 1 quân đơn lẻ
+        if (is_single_stone) {
+            ko_index_ = captured_index;
+        } else {
+            ko_index_ = -1;  // Không phải ko nếu capture từ nhóm lớn
+        }
+    } else {
+        // Không phải ko: capture nhiều quân hoặc nhóm của mình có nhiều quân
+        ko_index_ = -1;
     }
 }
 

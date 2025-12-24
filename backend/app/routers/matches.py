@@ -224,10 +224,20 @@ async def undo_move(
     current_user: Annotated[user_models.User, Depends(get_current_user)],
     match_service: Annotated[MatchService, Depends(get_match_service)],
 ):
-    """Hoàn tác nước đi cuối cùng của user."""
+    """Hoàn tác nước đi cuối cùng của user.
+    
+    LƯU Ý: Chức năng Undo chỉ khả dụng cho AI matches, không khả dụng cho PvP matches.
+    """
     match = match_service.get_match(match_id)
     if current_user.id not in {match.black_player_id, match.white_player_id}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not in match")
+    
+    # QUAN TRỌNG: Tắt chức năng Undo cho PvP matches
+    if not match.ai_level:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Chức năng Undo không khả dụng cho trận đấu người với người (PvP). Chỉ có thể sử dụng trong trận đấu với AI."
+        )
     
     try:
         result = await match_service.undo_move(match, str(current_user.id))

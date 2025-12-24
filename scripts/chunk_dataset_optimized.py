@@ -84,8 +84,12 @@ class ChunkDataset(Dataset):
     def _load_chunk(self, chunk_idx):
         """Load chunk nhẹ – chỉ dữ liệu, không metadata."""
         if self._cached_chunk_idx != chunk_idx:
-            # Debug: Print khi load chunk mới
-            if chunk_idx == 0:
+            # Chỉ print khi load chunk mới (không phải reload)
+            if not hasattr(self, '_loaded_chunks'):
+                self._loaded_chunks = set()
+            
+            is_new_chunk = chunk_idx not in self._loaded_chunks
+            if is_new_chunk:
                 print(f"🔄 Loading chunk {chunk_idx} from {self.chunk_files[chunk_idx].name}...")
             
             if self._cached_chunk_data is not None:
@@ -103,15 +107,12 @@ class ChunkDataset(Dataset):
             del chunk
             gc.collect()
             
-            # Debug: Print sau khi load xong
-            if chunk_idx == 0:
+            # Chỉ print khi load chunk mới
+            if is_new_chunk:
                 print(f"✅ Chunk {chunk_idx} loaded ({len(self._cached_chunk_data)} samples)")
+                self._loaded_chunks.add(chunk_idx)
 
     def __getitem__(self, idx):
-        # Debug: Print sample đầu tiên
-        if idx == 0:
-            print(f"🔍 __getitem__ called for idx={idx}")
-        
         # Locate chunk
         chunk_idx = 0
         for i in range(len(self._chunk_offsets) - 1):
@@ -124,18 +125,10 @@ class ChunkDataset(Dataset):
         self._load_chunk(chunk_idx)
         sample = self._cached_chunk_data[local_idx]
 
-        # Debug: Print sau khi lấy sample
-        if idx == 0:
-            print(f"✅ Got sample from chunk {chunk_idx}, local_idx={local_idx}")
-
         # Tối ưu: Dùng detach() thay vì clone() để nhanh hơn (nếu không cần gradient)
         features = sample['features'].detach().clone()  # detach() trước để nhanh hơn
         policy = sample['policy'].detach().clone()
         value = torch.tensor([sample['value']], dtype=torch.float32)
-        
-        # Debug: Print sau khi clone
-        if idx == 0:
-            print(f"✅ Cloned tensors, features shape: {features.shape}")
 
         result = {
             'features': features,

@@ -85,7 +85,7 @@
 
 /* Middle Left - Leaderboard Preview (below user info) */
 .middle-left {
-  top: 7rem;
+  top: 9rem;
   left: 1.5rem;
   max-width: 280px;
   max-height: fit-content;
@@ -245,6 +245,47 @@
   color: var(--color-orange-light);
   transform: translateY(-2px) scale(1.05);
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.3);
+}
+
+/* Event button - nổi bật hơn với màu vàng/cam */
+.corner-btn.event-btn {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 152, 0, 0.2));
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  color: #ffc107;
+  position: relative;
+}
+
+.corner-btn.event-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.3), rgba(255, 152, 0, 0.3));
+  border-color: rgba(255, 193, 7, 0.6);
+  color: #ffc107;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+/* Animation pulse cho nút event để thu hút sự chú ý */
+.corner-btn.event-btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(255, 193, 7, 0.2);
+  transform: translate(-50%, -50%) scale(0);
+  animation: eventPulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes eventPulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0;
+  }
 }
 
 /* Bottom Left - Statistics */

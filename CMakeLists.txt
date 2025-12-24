@@ -84,6 +84,7 @@ endif()
 
 set(AI_PLAYER_SOURCES
     "${SRC_ROOT}/ai/ai_player.cpp"
+    "${SRC_ROOT}/ai/opening_book.cpp"
 )
 
 add_library(gogame_ai STATIC ${AI_PLAYER_SOURCES})

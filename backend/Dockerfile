@@ -58,6 +58,8 @@ COPY backend/app ./app
 COPY backend/migrations ./migrations
 COPY backend/alembic.ini ./
 COPY backend/scripts ./scripts
+# Copy ML models (nếu có)
+COPY backend/models ./models
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
