@@ -1,0 +1,94 @@
+================================================================================
+NỘI DUNG PHIẾU ĐĂNG KÝ DỰ THI - GOGAME
+================================================================================
+
+BẢNG DỰ THI:
+☑ Bảng D: Trí tuệ nhân tạo & Công nghệ Chuỗi khối / AI & Blockchain
+
+================================================================================
+2.1. TÊN ĐỀ TÀI DỰ THI:
+================================================================================
+Ứng dụng AI trong chơi cờ vây
+
+================================================================================
+2.2. NỘI DUNG VÀ Ý TƯỞNG:
+================================================================================
+Cờ Vây là một trong những game cờ phức tạp nhất với không gian trạng thái lên đến 10^170, 
+đòi hỏi AI phải có khả năng tư duy chiến lược sâu sắc. Dự án GoGame là một hệ thống học tập 
+Cờ Vây thông minh, không chỉ là game giải trí mà còn là platform giáo dục với AI coach 
+mạnh mẽ. Hệ thống sử dụng kết hợp các thuật toán AI cổ điển (Minimax, MCTS) với Deep Learning 
+(Policy Network, Value Network) để tạo ra một AI có khả năng chơi ở nhiều cấp độ, đồng thời 
+cung cấp các tính năng phân tích và gợi ý để giúp người học cải thiện kỹ năng. Ý tưởng xuất 
+phát từ nhu cầu thực tế: người học Cờ Vây cần công cụ để phân tích vị trí, học hỏi từ sai lầm, 
+và có đối thủ AI phù hợp với trình độ để luyện tập.
+
+================================================================================
+2.3. CƠ SỞ LÝ THUYẾT VÀ CÔNG NGHỆ SỬ DỤNG:
+================================================================================
+- Thuật toán AI: Minimax với Alpha-Beta Pruning, Monte Carlo Tree Search (MCTS), 
+  Transposition Table, Move Ordering, Opening Book
+- Machine Learning: Policy Network (dự đoán nước đi), Value Network (đánh giá vị trí), 
+  Multi-Task Learning Model (phát hiện threat, attack, intent)
+- Kiến trúc Hybrid: C++20 cho AI Engine (performance-critical), Python 3.10+ cho ML models 
+  (PyTorch 2.0+), pybind11 cho Python-C++ binding
+- Backend: FastAPI (async REST API), PostgreSQL (structured data), MongoDB (game states, SGF records)
+- Frontend: React 18.2.0, Vite 7.2.4, WebSocket cho real-time gameplay
+- Deployment: Docker, có thể deploy lên cloud (Fly.io, AWS, etc.)
+
+================================================================================
+2.4. CHỨC NĂNG CHÍNH CỦA SẢN PHẨM:
+================================================================================
+1. Chơi với AI: 4 cấp độ từ Beginner đến Expert, sử dụng Minimax và MCTS
+2. Chơi online (PvP): Matchmaking tự động dựa trên ELO rating, real-time gameplay
+3. Hint System: Gợi ý nước đi tốt sử dụng Policy Network (premium feature)
+4. Position Analysis: Phân tích chi tiết vị trí với Value Network và Multi-Task Model, 
+   hiển thị win probability, territory estimation, threat/attack heatmaps (premium feature)
+5. Game Review: Phân tích toàn bộ ván đấu, highlight mistakes, suggest improvements (premium feature)
+6. Hệ thống xếp hạng: ELO rating system, leaderboard, thống kê cá nhân
+7. Lưu/Load game: Hỗ trợ format SGF, replay với timeline navigation
+8. Time control: Giới hạn thời gian cho PvP matches
+
+================================================================================
+2.5. TÍNH SÁNG TẠO VÀ KHẢ NĂNG ỨNG DỤNG, THƯƠNG MẠI HÓA:
+================================================================================
+Tính sáng tạo:
+- Kết hợp AI cổ điển (Minimax/MCTS) với Deep Learning trong một kiến trúc hybrid tối ưu
+- Multi-Task Learning Model phát hiện threat, attack, và intent - một cách tiếp cận mới 
+  trong phân tích Cờ Vây
+- Focus vào giáo dục thay vì chỉ gameplay, biến game thành công cụ học tập
+- Premium features sử dụng ML để cung cấp insights sâu cho người học
+
+Khả năng ứng dụng và thương mại hóa:
+- Ứng dụng trong giáo dục: Công cụ học Cờ Vây cho học sinh, sinh viên, người mới bắt đầu
+- EdTech market: Có thể tích hợp vào các nền tảng giáo dục, trung tâm dạy cờ
+- Monetization: Premium features (hint, analysis, review) với coin system hoặc subscription model
+- Scalable architecture: Có thể mở rộng để hỗ trợ nhiều người dùng đồng thời
+- Commercial viability: Sản phẩm đã deploy được, production-ready, có thể launch thương mại
+
+================================================================================
+2.6. HƯỚNG PHÁT TRIỂN TRONG TƯƠNG LAI:
+================================================================================
+1. Reinforcement Learning: Self-play training để AI tự học và cải thiện, không cần human data
+2. Larger Neural Networks: Mở rộng Policy/Value networks với ResNet sâu hơn để tăng độ mạnh
+3. Mobile Application: Phát triển app iOS/Android để tiếp cận nhiều người dùng hơn
+4. Tournament System: Tổ chức giải đấu online, ranking system, prizes
+5. Community Features: Chat, forums, sharing game records, learning groups
+6. Advanced Analysis: Phân tích sâu hơn với explainable AI, show reasoning của AI
+7. Multi-language Support: Hỗ trợ nhiều ngôn ngữ để mở rộng thị trường quốc tế
+8. Integration với các nền tảng giáo dục: LMS integration, API cho third-party apps
+
+================================================================================
+2.7. MÀN HÌNH, HÌNH ẢNH CHÍNH CỦA ỨNG DỤNG (SCREENSHOTS):
+================================================================================
+[Chèn screenshots: Game board, Hint system, Position analysis, Leaderboard, Statistics]
+
+================================================================================
+LƯU Ý:
+- File PhieuDuThi.md đã được điền đầy đủ nội dung
+- File này (NoiDungPhieuDuThi.txt) để dễ copy-paste nếu cần
+- Nhớ điền thông tin thí sinh ở phần I
+- Nhớ chèn screenshots vào phần 2.7
+- Ký tên và ghi ngày tháng ở cuối phiếu
+
+================================================================================
+
